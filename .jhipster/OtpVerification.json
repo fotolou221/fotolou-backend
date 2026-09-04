@@ -1,0 +1,48 @@
+{
+  "annotations": {
+    "changelogDate": "20260822180747"
+  },
+  "applications": ["fotolouBackend"],
+  "documentation": "Historique des vérifications OTP par SMS",
+  "dto": "mapstruct",
+  "fields": [
+    {
+      "fieldName": "phone",
+      "fieldType": "String",
+      "fieldValidateRules": ["required", "maxlength"],
+      "fieldValidateRulesMaxlength": "30"
+    },
+    {
+      "fieldName": "codeHash",
+      "fieldType": "String",
+      "fieldValidateRules": ["required", "maxlength"],
+      "fieldValidateRulesMaxlength": "255"
+    },
+    {
+      "fieldName": "status",
+      "fieldType": "OtpStatus",
+      "fieldValidateRules": ["required"],
+      "fieldValues": "PENDING,VERIFIED,EXPIRED,MAX_ATTEMPTS_EXCEEDED"
+    },
+    {
+      "fieldName": "attemptsCount",
+      "fieldType": "Integer",
+      "fieldValidateRules": ["required", "min"],
+      "fieldValidateRulesMin": "0"
+    },
+    {
+      "fieldName": "expiresAt",
+      "fieldType": "Instant",
+      "fieldValidateRules": ["required"]
+    },
+    {
+      "fieldName": "createdDate",
+      "fieldType": "Instant",
+      "fieldValidateRules": ["required"]
+    }
+  ],
+  "name": "OtpVerification",
+  "relationships": [],
+  "searchEngine": "no",
+  "service": "serviceClass"
+}

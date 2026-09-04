@@ -10,6 +10,7 @@ import com.fotolou.app.service.dto.PasswordChangeDTO;
 import com.fotolou.app.web.rest.errors.*;
 import com.fotolou.app.web.rest.vm.KeyAndPasswordVM;
 import com.fotolou.app.web.rest.vm.ManagedUserVM;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Size;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.*;
 /**
  * REST controller for managing the current user's account.
  */
+@Tag(name = "1. Authentification & OTP", description = "Profil et compte de l'utilisateur connecté")
 @RestController
 @RequestMapping("/api")
 @Validated

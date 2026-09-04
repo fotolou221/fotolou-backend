@@ -1,171 +1,187 @@
-# fotolouBackend
+# 🚀 FOTOLOU BACKEND — GUIDE DE DÉMARRAGE & FONCTIONNEMENT
 
-This application was generated using JHipster 9.2.0, you can find documentation and help at [https://www.jhipster.tech/documentation-archive/v9.2.0](https://www.jhipster.tech/documentation-archive/v9.2.0).
+> Backend officiel pour la plateforme **Fotolou** (Gestion de files d'attente virtuelles en direct & boutique e-commerce pour salons de coiffure à Dakar).  
+> Stack : **Java 21, Spring Boot 3.x, JHipster 9, PostgreSQL 16, Spring Security JWT, Liquibase, Redis**.
 
-## Project Structure
+---
 
-Node is required for generation and recommended for development. `package.json` is always generated for a better development experience with prettier, commit hooks, scripts and so on.
+## 📋 TABLE DES MATIÈRES
 
-In the project root, JHipster generates configuration files for tools like git, prettier, eslint, husky, and others that are well known and you can find references in the web.
+1. [Architecture & Fonctionnalités Implémentées](#1-architecture--fonctionnalit%C3%A9s-impl%C3%A9ment%C3%A9es)
+2. [Prérequis & Installation](#2-pr%C3%A9requis--installation)
+3. [Démarrage en 3 Étapes Rapides](#3-d%C3%A9marrage-en-3-%C3%A9tapes-rapides)
+4. [Identifiants de Test & Codes par Défaut](#4-identifiants-de-test--codes-par-d%C3%A9faut)
+5. [Endpoints REST Clés & Utilisation](#5-endpoints-rest-cl%C3%A9s--utilisation)
+6. [Connexion avec le Frontend Angular PWA](#6-connexion-avec-le-frontend-angular-pwa)
+7. [Structure du Code Source](#7-structure-du-code-source)
 
-`/src/*` structure follows default Java structure.
+---
 
-- `.yo-rc.json` - Yeoman configuration file
-  JHipster configuration is stored in this file at `generator-jhipster` key. You may find `generator-jhipster-*` for specific blueprints configuration.
-- `.yo-resolve` (optional) - Yeoman conflict resolver
-  Allows to use a specific action when conflicts are found skipping prompts for files that matches a pattern. Each line should match `[pattern] [action]` with pattern been a [Minimatch](https://github.com/isaacs/minimatch#minimatch) pattern and action been one of skip (default if omitted) or force. Lines starting with `#` are considered comments and are ignored.
-- `.jhipster/*.json` - JHipster entity configuration files
-- `/src/main/docker` - Docker configurations for the application and services that the application depends on
+## 1. ARCHITECTURE & FONCTIONNALITÉS IMPLÉMENTÉES
 
-## Development
+Le backend est 100% opérationnel et fournit l'ensemble des fonctionnalités requises par le frontend :
 
-To start your application in the dev profile, run:
+- 🔐 **Authentification Téléphone + OTP SMS** (`/api/auth/otp/send`, `/api/auth/otp/verify`) :
+  - Génération de code à 6 chiffres aléatoire.
+  - Hachage sécurisé BCrypt en base de données.
+  - Durée de validité 5 minutes, maximum 3 tentatives, rate limiting horaire.
+  - Code universel de test en développement : **`123456`**.
+  - Émission de token JWT et profil utilisateur (`CLIENT` / `COIFFEUR`).
+- 🎟️ **Moteur de File d'Attente Temps Réel (`QueueEngineService`)** :
+  - Numérotation séquentielle journalière par salon (`#1`, `#2`, `#3`...).
+  - Prise de tickets multi-bénéficiaires (`/api/tickets/book-multiple`) pour soi, ses proches ou un tiers.
+  - Ajout de client direct en présentiel par le coiffeur (`/api/tickets/walk-in`).
+  - Recalcul automatique et atomique des positions (`peopleAhead`) et temps d'attente estimés lors des passages (`served`) ou annulations (`cancel`).
+  - Envoi d'alertes SMS automatiques dès que le tour du client approche.
+- 💈 **Gestion des Salons & Favoris** (`/api/salons`, `/api/favorites/toggle`, `/api/favorites/my-favorites`) :
+  - Ouverture / fermeture de la file en 1 clic (`PATCH /api/salons/{id}/toggle-status`).
+  - Enregistrement des salons favoris par client.
+- 🛍️ **Boutique E-Commerce & Commandes WhatsApp** (`/api/orders/checkout`, `/api/products`, `/api/categories`) :
+  - Validation du panier et des stocks en base.
+  - Frais de livraison forfaitaires configurables (**2 000 FCFA**).
+  - Génération automatique du message et lien **WhatsApp Business** pré-formaté (`https://wa.me/...`).
+- 📁 **Stockage & Téléversement de Médias** (`/api/storage/upload`, `/api/files/**`) :
+  - Upload d'images (avatars, bannières salons, photos produits) avec validation MIME (JPEG, PNG, WebP) et distribution HTTP directe.
+- 📊 **Tableau de Bord Administrateur** (`/api/admin/dashboard-stats`) :
+  - Métriques consolidées en direct pour le portail d'administration `/admin`.
+- 🌱 **Initialisation Automatique (`DatabaseDataInitializer`)** :
+  - Au premier démarrage, la base est automatiquement peuplée avec les salons de Dakar (King Barber Mermoz, Almadies, Plateau, Point E), le catalogue de produits, les catégories et le compte admin.
 
-```bash
-./mvnw
-```
+---
 
-For further instructions on how to develop with JHipster, have a look at [Using JHipster in development][].
+## 2. PRÉREQUIS & INSTALLATION
 
-## Building for production
+- **Java** : JDK 21 ou supérieur (`java -version`)
+- **Node.js** : v20 ou supérieur (`node -v`)
+- **Docker & Docker Compose** : (`docker compose version`)
 
-### Packaging as jar
+---
 
-To build the final jar and optimize the fotolouBackend application for production, run:
+## 3. DÉMARRAGE EN 3 ÉTAPES RAPIDES
 
-```bash
-./mvnw -Pprod clean verify
-```
+### Étape 1 : Démarrer PostgreSQL & Redis avec Docker
 
-To ensure everything worked, run:
-
-```bash
-java -jar target/*.jar
-```
-
-Refer to [Using JHipster in production][] for more details.
-
-### Packaging as war
-
-To package your application as a war in order to deploy it to an application server, run:
-
-```bash
-./mvnw -Pprod,war clean verify
-```
-
-### JHipster Control Center
-
-JHipster Control Center can help you manage and control your application(s). You can start a local control center server (accessible on http://localhost:7419) with:
-
-```bash
-docker compose -f src/main/docker/jhipster-control-center.yml up
-```
-
-## Testing
-
-### Spring Boot tests
-
-To launch your application's tests, run:
+À la racine du projet (`Perso/TechDegg`) :
 
 ```bash
-./mvnw verify
+docker compose up -d fotolou-postgresql fotolou-redis fotolou-pgadmin
 ```
 
-## Others
+### Étape 2 : Lancer le Backend Spring Boot
 
-### Code quality using Sonar
-
-Sonar is used to analyse code quality. You can start a local Sonar server (accessible on http://localhost:9001) with:
+Dans le dossier `fotolou-backend` :
 
 ```bash
-docker compose -f src/main/docker/sonar.yml up -d
+# Sur Windows PowerShell
+.\mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+
+# Ou sur Linux / macOS
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
-Note: we have turned off forced authentication redirect for UI in [src/main/docker/sonar.yml](src/main/docker/sonar.yml) for out of the box experience while trying out SonarQube, for real use cases turn it back on.
+_Le backend démarre sur **`http://localhost:8080`**._
 
-You can run a Sonar analysis with using the [sonar-scanner](https://docs.sonarqube.org/display/SCAN/Analyzing+with+SonarQube+Scanner) or by using the maven plugin.
+### Étape 3 : Lancer le Frontend Angular PWA
 
-Then, run a Sonar analysis:
+Dans un autre terminal, dans le dossier `Fotolou PWA` :
 
 ```bash
-./mvnw -Pprod clean verify sonar:sonar -Dsonar.login=admin -Dsonar.password=admin
+npm install
+npm start
 ```
 
-If you need to re-run the Sonar phase, please be sure to specify at least the `initialize` phase since Sonar properties are loaded from the sonar-project.properties file.
+_L'application s'ouvre sur **`http://localhost:4200`**._
 
-```bash
-./mvnw initialize sonar:sonar -Dsonar.login=admin -Dsonar.password=admin
+---
+
+## 4. IDENTIFIANTS DE TEST & CODES PAR DÉFAUT
+
+### Pour les Clients Mobiles (PWA) :
+
+- **Numéro de téléphone** : N'importe quel numéro sénégalais (ex : `77 862 70 52` ou `77 123 45 67`).
+- **Code OTP SMS** : En mode développement, le code envoyé s'affiche dans la console du backend. Vous pouvez également utiliser le code passe-partout : **`123456`**.
+
+### Pour les Coiffeurs / Barbiers :
+
+- **Numéro de téléphone** : `+221770000001` (ou votre propre numéro en cochant l'onglet "Je suis Coiffeur").
+- **Code OTP** : **`123456`**.
+
+### Pour le Back-Office Administrateur (`http://localhost:4200/admin`) :
+
+- **Email** : `admin@fotolou.sn`
+- **Mot de passe** : `admin_fotolou_2026`
+
+---
+
+## 5. ENDPOINTS REST CLÉS & UTILISATION
+
+| Méthode | URL                              | Rôle              | Description                                          |
+| :------ | :------------------------------- | :---------------- | :--------------------------------------------------- |
+| `POST`  | `/api/auth/otp/send`             | Public            | Envoie un code OTP à 6 chiffres par SMS.             |
+| `POST`  | `/api/auth/otp/verify`           | Public            | Valide le code OTP et retourne le JWT token.         |
+| `GET`   | `/api/salons`                    | Public            | Liste des salons avec affluence en direct.           |
+| `GET`   | `/api/salons/{id}`               | Public            | Fiche détaillée d'un salon avec galerie photos.      |
+| `PATCH` | `/api/salons/{id}/toggle-status` | Coiffeur / Admin  | Ouvre ou ferme la file du salon.                     |
+| `POST`  | `/api/tickets/book-multiple`     | Client            | Prise groupée de tickets pour soi et/ou ses proches. |
+| `POST`  | `/api/tickets/walk-in`           | Coiffeur / Admin  | Ajout d'un client direct sur place.                  |
+| `POST`  | `/api/tickets/{id}/call-next`    | Coiffeur / Admin  | Appelle le client (Statut `YOUR_TURN` + Alerte SMS). |
+| `POST`  | `/api/tickets/{id}/serve`        | Coiffeur / Admin  | Marque le ticket comme servi avec succès (`SERVED`). |
+| `POST`  | `/api/tickets/{id}/cancel`       | Client / Coiffeur | Annule le ticket et met à jour la file.              |
+| `GET`   | `/api/tickets/my-tickets`        | Client            | Liste de mes tickets actifs et passés.               |
+| `GET`   | `/api/salons/{id}/queue`         | Public / Coiffeur | File d'attente active en temps réel du salon.        |
+| `POST`  | `/api/favorites/toggle`          | Client            | Ajoute/retire un salon des favoris.                  |
+| `GET`   | `/api/favorites/my-favorites`    | Client            | Liste des salons favoris du client.                  |
+| `GET`   | `/api/products`                  | Public            | Catalogue des produits boutique en FCFA.             |
+| `GET`   | `/api/categories`                | Public            | Rayons de la boutique e-commerce.                    |
+| `POST`  | `/api/orders/checkout`           | Client            | Crée une commande et génère le lien WhatsApp.        |
+| `GET`   | `/api/orders/my-orders`          | Client            | Historique des commandes du client.                  |
+| `POST`  | `/api/storage/upload`            | Coiffeur / Admin  | Téléversement d'image (avatar, salon, produit).      |
+| `GET`   | `/api/files/{filename}`          | Public            | Distribution et affichage de l'image.                |
+| `GET`   | `/api/admin/dashboard-stats`     | Admin             | Statistiques consolidées en direct.                  |
+
+---
+
+## 6. CONNEXION AVEC LE FRONTEND ANGULAR PWA
+
+Le frontend `Fotolou PWA` est déjà configuré dans `src/environments/environment.ts` pour pointer sur `http://localhost:8080/api`.
+
+Le backend gère automatiquement :
+
+1. Les en-têtes **CORS** pour autoriser `http://localhost:4200`.
+2. L'interception des requêtes authentifiées avec le header `Authorization: Bearer <token>`.
+3. Le format exact des réponses attendues par les services Angular (`SalonService`, `TicketService`, `ProductService`, `OrderService`, `RelativeService`, `AdminDataService`).
+
+---
+
+## 7. STRUCTURE DU CODE SOURCE
+
+```text
+src/main/java/com/fotolou/app/
+├── config/
+│   ├── ApplicationProperties.java   # Propriétés SMS, OTP, Storage, WhatsApp
+│   ├── DatabaseDataInitializer.java # Seeder de données de démarrage
+│   ├── SecurityConfiguration.java   # Sécurité Spring Security JWT & CORS
+│   └── WebConfigurer.java           # Filtre CORS et servlets
+├── domain/                          # Entités JPA (Salon, Ticket, Product, Order...)
+├── repository/                      # Repositories Spring Data JPA
+├── security/                        # Constantes de rôles, JWT TokenProvider
+├── service/                         # Services générés (DTOs, Mappers MapStruct)
+│   └── custom/
+│       ├── otp/OtpService.java      # Service de gestion et vérification OTP
+│       ├── sms/                     # Fournisseurs SMS (Mock, Orange, Twilio)
+│       ├── queue/QueueEngineService.java # Moteur de file d'attente temps réel
+│       └── storage/StorageService.java   # Gestion des uploads d'images
+└── web/rest/                        # Contrôleurs REST
+    ├── custom/                      # Contrôleurs métier Fotolou
+    │   ├── AuthOtpResource.java     # Endpoint login & validation OTP
+    │   ├── TicketCustomResource.java# Prise de tickets, file d'attente
+    │   ├── SalonCustomResource.java # Statut file & favoris
+    │   ├── OrderCustomResource.java # Commandes boutique & WhatsApp
+    │   ├── StorageResource.java     # Upload & streaming de fichiers
+    │   └── AdminDashboardResource.java # Métriques consolidées admin
+    └── (CRUD standard JHipster)
 ```
 
-Additionally, Instead of passing `sonar.password` and `sonar.login` as CLI arguments, these parameters can be configured from [sonar-project.properties](sonar-project.properties) as shown below:
+---
 
-```bash
-sonar.login=admin
-sonar.password=admin
-```
-
-For more information, refer to the [Code quality page][].
-
-### Docker Compose support
-
-JHipster generates a number of Docker Compose configuration files in the [src/main/docker/](src/main/docker/) folder to launch required third party services.
-
-For example, to start required services in Docker containers, run:
-
-```bash
-docker compose -f src/main/docker/services.yml up -d
-```
-
-To stop and remove the containers, run:
-
-```bash
-docker compose -f src/main/docker/services.yml down
-```
-
-[Spring Docker Compose Integration](https://docs.spring.io/spring-boot/reference/features/dev-services.html) is enabled by default. It's possible to disable it in `application.yml`:
-
-```yaml
-spring:
-  ...
-  docker:
-    compose:
-      enabled: false
-```
-
-You can also fully dockerize your application and all the services that it depends on.
-To achieve this, first build a Docker image of your app by running:
-
-```bash
-npm run java:docker
-```
-
-Or build an arm64 Docker image when using an arm64 processor OS, i.e., Apple Silicon chips (M*), running:
-
-```bash
-npm run java:docker:arm64
-```
-
-Then run:
-
-```bash
-docker compose -f src/main/docker/app.yml up -d
-```
-
-For more information refer to [Docker and Docker-Compose](https://www.jhipster.tech/documentation-archive/v9.2.0/docker-compose/), this page also contains information on the Docker Compose sub-generator (`jhipster docker-compose`), which is able to generate Docker configurations for one or several JHipster applications.
-
-## Continuous Integration (optional)
-
-To configure CI for your project, run the ci-cd sub-generator (`jhipster ci-cd`), this will let you generate configuration files for a number of Continuous Integration systems. Consult the [Setting up Continuous Integration](https://www.jhipster.tech/documentation-archive/v9.2.0/setting-up-ci/) page for more information.
-
-## References
-
-- [JHipster Homepage and latest documentation](https://www.jhipster.tech/)
-- [JHipster 9.2.0 archive](https://www.jhipster.tech/documentation-archive/v9.2.0)
-- [Using JHipster in development](https://www.jhipster.tech/documentation-archive/v9.2.0/development/)
-- [Using Docker and Docker-Compose](https://www.jhipster.tech/documentation-archive/v9.2.0/docker-compose)
-- [Using JHipster in production](https://www.jhipster.tech/documentation-archive/v9.2.0/production/)
-- [Running tests page](https://www.jhipster.tech/documentation-archive/v9.2.0/running-tests/)
-- [Code quality page](https://www.jhipster.tech/documentation-archive/v9.2.0/code-quality/)
-- [Setting up Continuous Integration](https://www.jhipster.tech/documentation-archive/v9.2.0/setting-up-ci/)
-- [Node.js](https://nodejs.org/)
-- [NPM](https://www.npmjs.com/)
+_Backend Fotolou — Moins d'attente, plus de temps._

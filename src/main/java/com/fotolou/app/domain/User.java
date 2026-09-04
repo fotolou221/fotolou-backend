@@ -15,15 +15,12 @@ import java.util.Locale;
 import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 import org.hibernate.annotations.BatchSize;
-import org.hibernate.annotations.Cache;
-import org.hibernate.annotations.CacheConcurrencyStrategy;
 
 /**
  * A user.
  */
 @Entity
 @Table(name = "jhi_user")
-@Cache(usage = CacheConcurrencyStrategy.NONSTRICT_READ_WRITE)
 public class User extends AbstractAuditingEntity<Long> implements Serializable {
 
     @Serial
@@ -92,7 +89,6 @@ public class User extends AbstractAuditingEntity<Long> implements Serializable {
         joinColumns = { @JoinColumn(name = "user_id", referencedColumnName = "id") },
         inverseJoinColumns = { @JoinColumn(name = "authority_name", referencedColumnName = "name") }
     )
-    @Cache(usage = CacheConcurrencyStrategy.NONSTRICT_READ_WRITE)
     @BatchSize(size = 20)
     private Set<Authority> authorities = new HashSet<>();
 

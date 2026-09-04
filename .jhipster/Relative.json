@@ -1,0 +1,47 @@
+{
+  "annotations": {
+    "changelogDate": "20260822180738"
+  },
+  "applications": ["fotolouBackend"],
+  "documentation": "Proche enregistré par un client pour réservation multi-tickets",
+  "dto": "mapstruct",
+  "fields": [
+    {
+      "fieldName": "name",
+      "fieldType": "String",
+      "fieldValidateRules": ["required", "minlength", "maxlength"],
+      "fieldValidateRulesMaxlength": "100",
+      "fieldValidateRulesMinlength": "2"
+    },
+    {
+      "fieldName": "relation",
+      "fieldType": "RelativeRelation",
+      "fieldValidateRules": ["required"],
+      "fieldValues": "MERE,PERE,ENFANT,FRERE,SOEUR,AMI,AUTRE"
+    },
+    {
+      "fieldName": "phone",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "30"
+    },
+    {
+      "fieldName": "createdDate",
+      "fieldType": "Instant"
+    }
+  ],
+  "name": "Relative",
+  "pagination": "infinite-scroll",
+  "relationships": [
+    {
+      "otherEntityName": "user",
+      "relationshipName": "user",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required",
+      "relationshipWithBuiltInEntity": true
+    }
+  ],
+  "searchEngine": "no",
+  "service": "serviceClass"
+}

@@ -36,6 +36,8 @@
         <spring-boot.version>${project.parent.version}</spring-boot.version>
         <archunit-junit5.version>1.4.2</archunit-junit5.version>
         <checkstyle.version>13.7.0</checkstyle.version>
+        <cucumber-bom.version>7.34.4</cucumber-bom.version>
+        <jackson-databind-nullable.version>0.2.10</jackson-databind-nullable.version>
         <jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
         <jhipster-framework.version>9.1.0</jhipster-framework.version>
         <jib-maven-plugin.architecture>amd64</jib-maven-plugin.architecture>
@@ -49,6 +51,7 @@
         <maven-checkstyle-plugin.version>3.6.0</maven-checkstyle-plugin.version>
         <modernizer-maven-plugin.version>3.4.0</modernizer-maven-plugin.version>
         <nohttp-checkstyle.version>0.0.11</nohttp-checkstyle.version>
+        <openapi-generator-maven-plugin.version>7.23.0</openapi-generator-maven-plugin.version>
         <profile.api-docs/>
         <profile.e2e/>
         <profile.no-liquibase/>
@@ -62,6 +65,18 @@
         <spring.profiles.active>dev</spring.profiles.active>
         <springdoc-openapi-starter-webmvc-api.version>3.0.3</springdoc-openapi-starter-webmvc-api.version>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.cucumber</groupId>
+                <artifactId>cucumber-bom</artifactId>
+                <version>${cucumber-bom.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <dependency>
@@ -160,6 +175,10 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-test</artifactId>
             <scope>test</scope>
         </dependency>
@@ -174,12 +193,16 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-messaging</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.springdoc</groupId>
-            <artifactId>springdoc-openapi-starter-webmvc-api</artifactId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>${springdoc-openapi-starter-webmvc-api.version}</version>
         </dependency>
         <dependency>
@@ -219,6 +242,21 @@
             <artifactId>HikariCP</artifactId>
         </dependency>
         <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-java</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-junit-platform-engine</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-spring</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
@@ -237,16 +275,17 @@
         </dependency>
         <dependency>
             <groupId>org.hibernate.orm</groupId>
-            <artifactId>hibernate-jcache</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.hibernate.orm</groupId>
             <artifactId>hibernate-processor</artifactId>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.hibernate.validator</groupId>
             <artifactId>hibernate-validator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-suite</artifactId>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.liquibase</groupId>
@@ -257,6 +296,11 @@
             <groupId>org.mapstruct</groupId>
             <artifactId>mapstruct</artifactId>
             <version>${mapstruct.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openapitools</groupId>
+            <artifactId>jackson-databind-nullable</artifactId>
+            <version>${jackson-databind-nullable.version}</version>
         </dependency>
         <dependency>
             <groupId>org.postgresql</groupId>
@@ -366,6 +410,10 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.openapitools</groupId>
+                <artifactId>openapi-generator-maven-plugin</artifactId>
             </plugin>
             <plugin>
                 <groupId>org.sonarsource.scanner.maven</groupId>
@@ -485,6 +533,9 @@
                             <include>**/*IT*</include>
                             <include>**/*IntTest*</include>
                         </includes>
+                        <excludes>
+                            <exclude>**/*CucumberIT*</exclude>
+                        </excludes>
                         <argLine>@{argLine} -Dspring.profiles.active=${profile.test}</argLine>
                     </configuration>
                     <executions>
@@ -786,6 +837,31 @@
                     </dependencies>
                 </plugin>
                 <plugin>
+                    <groupId>org.openapitools</groupId>
+                    <artifactId>openapi-generator-maven-plugin</artifactId>
+                    <version>${openapi-generator-maven-plugin.version}</version>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>generate</goal>
+                            </goals>
+                            <configuration>
+                                <inputSpec>${project.basedir}/src/main/resources/swagger/api.yml</inputSpec>
+                                <generatorName>spring</generatorName>
+                                <apiPackage>com.fotolou.app.web.api</apiPackage>
+                                <modelPackage>com.fotolou.app.service.api.dto</modelPackage>
+                                <supportingFilesToGenerate>ApiUtil.java</supportingFilesToGenerate>
+                                <skipValidateSpec>false</skipValidateSpec>
+                                <configOptions>
+                                    <delegatePattern>true</delegatePattern>
+                                    <title>fotolou-backend</title>
+                                    <useSpringBoot3>true</useSpringBoot3>
+                                </configOptions>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
                     <groupId>org.sonarsource.scanner.maven</groupId>
                     <artifactId>sonar-maven-plugin</artifactId>
                     <version>${sonar-maven-plugin.version}</version>
@@ -865,6 +941,19 @@
                                                 <versionRange>${jacoco-maven-plugin.version}</versionRange>
                                                 <goals>
                                                     <goal>prepare-agent</goal>
+                                                </goals>
+                                            </pluginExecutionFilter>
+                                            <action>
+                                                <ignore/>
+                                            </action>
+                                        </pluginExecution>
+                                        <pluginExecution>
+                                            <pluginExecutionFilter>
+                                                <groupId>org.openapitools</groupId>
+                                                <artifactId>openapi-generator-maven-plugin</artifactId>
+                                                <versionRange>${openapi-generator-maven-plugin.version}</versionRange>
+                                                <goals>
+                                                    <goal>generate</goal>
                                                 </goals>
                                             </pluginExecutionFilter>
                                             <action>

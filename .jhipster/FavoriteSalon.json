@@ -1,0 +1,35 @@
+{
+  "annotations": {
+    "changelogDate": "20260822180739"
+  },
+  "applications": ["fotolouBackend"],
+  "documentation": "Salons favoris sauvegardés par les clients",
+  "dto": "mapstruct",
+  "fields": [
+    {
+      "fieldName": "createdDate",
+      "fieldType": "Instant",
+      "fieldValidateRules": ["required"]
+    }
+  ],
+  "name": "FavoriteSalon",
+  "relationships": [
+    {
+      "otherEntityName": "user",
+      "relationshipName": "user",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required",
+      "relationshipWithBuiltInEntity": true
+    },
+    {
+      "otherEntityName": "salon",
+      "relationshipName": "salon",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    }
+  ],
+  "searchEngine": "no",
+  "service": "serviceClass"
+}

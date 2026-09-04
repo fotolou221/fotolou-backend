@@ -1,0 +1,98 @@
+{
+  "annotations": {
+    "changelogDate": "20260822180737"
+  },
+  "applications": ["fotolouBackend"],
+  "documentation": "Ticket virtuel de file d'attente",
+  "dto": "mapstruct",
+  "fields": [
+    {
+      "fieldName": "ticketNumber",
+      "fieldType": "Integer",
+      "fieldValidateRules": ["required", "min"],
+      "fieldValidateRulesMin": "1"
+    },
+    {
+      "fieldName": "ownerName",
+      "fieldType": "String",
+      "fieldValidateRules": ["required", "maxlength"],
+      "fieldValidateRulesMaxlength": "100"
+    },
+    {
+      "fieldName": "ownerType",
+      "fieldType": "TicketOwnerType",
+      "fieldValidateRules": ["required"],
+      "fieldValues": "SELF,RELATIVE,CUSTOM"
+    },
+    {
+      "fieldName": "status",
+      "fieldType": "TicketStatus",
+      "fieldValidateRules": ["required"],
+      "fieldValues": "WAITING,YOUR_TURN,SERVED,COMPLETED,CANCELLED"
+    },
+    {
+      "fieldName": "category",
+      "fieldType": "TicketCategory",
+      "fieldValidateRules": ["required"],
+      "fieldValues": "ACTIVE,HISTORY"
+    },
+    {
+      "fieldName": "peopleAhead",
+      "fieldType": "Integer",
+      "fieldValidateRules": ["min"],
+      "fieldValidateRulesMin": "0"
+    },
+    {
+      "fieldName": "estimatedWaitMinutes",
+      "fieldType": "Integer",
+      "fieldValidateRules": ["min"],
+      "fieldValidateRulesMin": "0"
+    },
+    {
+      "fieldName": "itemCount",
+      "fieldType": "Integer",
+      "fieldValidateRules": ["min"],
+      "fieldValidateRulesMin": "1"
+    },
+    {
+      "fieldName": "servedAt",
+      "fieldType": "Instant"
+    },
+    {
+      "fieldName": "cancelledAt",
+      "fieldType": "Instant"
+    },
+    {
+      "fieldName": "createdDate",
+      "fieldType": "Instant",
+      "fieldValidateRules": ["required"]
+    },
+    {
+      "fieldName": "lastModifiedDate",
+      "fieldType": "Instant"
+    }
+  ],
+  "jpaMetamodelFiltering": true,
+  "name": "Ticket",
+  "pagination": "pagination",
+  "relationships": [
+    {
+      "otherEntityName": "user",
+      "relationshipName": "user",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipWithBuiltInEntity": true
+    },
+    {
+      "otherEntityField": "name",
+      "otherEntityName": "salon",
+      "otherEntityRelationshipName": "tickets",
+      "relationshipName": "salon",
+      "relationshipSide": "right",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    }
+  ],
+  "searchEngine": "no",
+  "service": "serviceClass"
+}

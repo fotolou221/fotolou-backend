@@ -6,8 +6,6 @@ import jakarta.validation.constraints.*;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Objects;
-import org.hibernate.annotations.Cache;
-import org.hibernate.annotations.CacheConcurrencyStrategy;
 import org.springframework.data.domain.Persistable;
 
 /**
@@ -15,7 +13,6 @@ import org.springframework.data.domain.Persistable;
  */
 @Entity
 @Table(name = "jhi_authority")
-@Cache(usage = CacheConcurrencyStrategy.READ_WRITE)
 @JsonIgnoreProperties(value = { "new", "id" })
 @SuppressWarnings("common-java:DuplicatedBlocks")
 public class Authority implements Serializable, Persistable<String> {

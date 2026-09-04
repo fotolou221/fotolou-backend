@@ -1,0 +1,63 @@
+{
+  "annotations": {
+    "changelogDate": "20260822180745"
+  },
+  "applications": ["fotolouBackend"],
+  "documentation": "Notification in-app et push",
+  "dto": "mapstruct",
+  "fields": [
+    {
+      "fieldName": "title",
+      "fieldType": "String",
+      "fieldValidateRules": ["required", "maxlength"],
+      "fieldValidateRulesMaxlength": "150"
+    },
+    {
+      "fieldName": "message",
+      "fieldType": "TextBlob",
+      "fieldValidateRules": ["required"]
+    },
+    {
+      "fieldName": "type",
+      "fieldType": "NotificationType",
+      "fieldValidateRules": ["required"],
+      "fieldValues": "TICKET,ORDER,PROMO,SYSTEM"
+    },
+    {
+      "fieldName": "recipientRole",
+      "fieldType": "RecipientRole",
+      "fieldValidateRules": ["required"],
+      "fieldValues": "CLIENT,COIFFEUR,ADMIN"
+    },
+    {
+      "fieldName": "isRead",
+      "fieldType": "Boolean",
+      "fieldValidateRules": ["required"]
+    },
+    {
+      "fieldName": "targetRoute",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "255"
+    },
+    {
+      "fieldName": "createdDate",
+      "fieldType": "Instant",
+      "fieldValidateRules": ["required"]
+    }
+  ],
+  "jpaMetamodelFiltering": true,
+  "name": "AppNotification",
+  "pagination": "pagination",
+  "relationships": [
+    {
+      "otherEntityName": "user",
+      "relationshipName": "user",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipWithBuiltInEntity": true
+    }
+  ],
+  "searchEngine": "no",
+  "service": "serviceClass"
+}

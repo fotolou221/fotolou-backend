@@ -6,7 +6,9 @@ services:
     # volumes:
     #   - ~/volumes/jhipster/fotolouBackend/postgresql/:/var/lib/postgresql/data/
     environment:
-      - POSTGRES_USER=fotolouBackend
+      - POSTGRES_USER=fotolou_user
+      - POSTGRES_PASSWORD=fotolou_secure_password
+      - POSTGRES_DB=fotolou_db
       - POSTGRES_HOST_AUTH_METHOD=trust
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER}']

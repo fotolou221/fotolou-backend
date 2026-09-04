@@ -2,6 +2,7 @@ package com.fotolou.app.web.rest;
 
 import com.fotolou.app.service.UserService;
 import com.fotolou.app.service.dto.UserDTO;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import tech.jhipster.web.util.PaginationUtil;
 
+@Tag(name = "8. Administration & Statistiques", description = "Consultation des profils utilisateurs publics")
 @RestController
 @RequestMapping("/api")
 public class PublicUserResource {

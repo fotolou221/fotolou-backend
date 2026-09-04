@@ -5,14 +5,12 @@ import java.util.concurrent.TimeUnit;
 import javax.cache.configuration.MutableConfiguration;
 import javax.cache.expiry.CreatedExpiryPolicy;
 import javax.cache.expiry.Duration;
-import org.hibernate.cache.jcache.ConfigSettings;
 import org.redisson.Redisson;
 import org.redisson.config.ClusterServersConfig;
 import org.redisson.config.Config;
 import org.redisson.config.SingleServerConfig;
 import org.redisson.jcache.configuration.RedissonConfiguration;
 import org.springframework.boot.cache.autoconfigure.JCacheManagerCustomizer;
-import org.springframework.boot.hibernate.autoconfigure.HibernatePropertiesCustomizer;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -62,18 +60,31 @@ public class CacheConfiguration {
     }
 
     @Bean
-    public HibernatePropertiesCustomizer hibernatePropertiesCustomizer(javax.cache.CacheManager cm) {
-        return hibernateProperties -> hibernateProperties.put(ConfigSettings.CACHE_MANAGER, cm);
-    }
-
-    @Bean
     public JCacheManagerCustomizer cacheManagerCustomizer(javax.cache.configuration.Configuration<Object, Object> jcacheConfiguration) {
         return cm -> {
             createCache(cm, com.fotolou.app.repository.UserRepository.USERS_BY_LOGIN_CACHE, jcacheConfiguration);
             createCache(cm, com.fotolou.app.repository.UserRepository.USERS_BY_EMAIL_CACHE, jcacheConfiguration);
-            createCache(cm, com.fotolou.app.domain.User.class.getName(), jcacheConfiguration);
             createCache(cm, com.fotolou.app.domain.Authority.class.getName(), jcacheConfiguration);
-            createCache(cm, com.fotolou.app.domain.User.class.getName() + ".authorities", jcacheConfiguration);
+            createCache(cm, com.fotolou.app.domain.Salon.class.getName(), jcacheConfiguration);
+            createCache(cm, com.fotolou.app.domain.Salon.class.getName() + ".actionses", jcacheConfiguration);
+            createCache(cm, com.fotolou.app.domain.Salon.class.getName() + ".coiffeurses", jcacheConfiguration);
+            createCache(cm, com.fotolou.app.domain.Salon.class.getName() + ".ticketses", jcacheConfiguration);
+            createCache(cm, com.fotolou.app.domain.SalonAction.class.getName(), jcacheConfiguration);
+            createCache(cm, com.fotolou.app.domain.CoiffeurProfile.class.getName(), jcacheConfiguration);
+            createCache(cm, com.fotolou.app.domain.Ticket.class.getName(), jcacheConfiguration);
+            createCache(cm, com.fotolou.app.domain.Relative.class.getName(), jcacheConfiguration);
+            createCache(cm, com.fotolou.app.domain.FavoriteSalon.class.getName(), jcacheConfiguration);
+            createCache(cm, com.fotolou.app.domain.ProductCategory.class.getName(), jcacheConfiguration);
+            createCache(cm, com.fotolou.app.domain.ProductCategory.class.getName() + ".productses", jcacheConfiguration);
+            createCache(cm, com.fotolou.app.domain.Product.class.getName(), jcacheConfiguration);
+            createCache(cm, com.fotolou.app.domain.Product.class.getName() + ".imageses", jcacheConfiguration);
+            createCache(cm, com.fotolou.app.domain.ProductImage.class.getName(), jcacheConfiguration);
+            createCache(cm, com.fotolou.app.domain.BoutiqueOrder.class.getName(), jcacheConfiguration);
+            createCache(cm, com.fotolou.app.domain.BoutiqueOrder.class.getName() + ".itemses", jcacheConfiguration);
+            createCache(cm, com.fotolou.app.domain.OrderItem.class.getName(), jcacheConfiguration);
+            createCache(cm, com.fotolou.app.domain.AppNotification.class.getName(), jcacheConfiguration);
+            createCache(cm, com.fotolou.app.domain.PlatformSettings.class.getName(), jcacheConfiguration);
+            createCache(cm, com.fotolou.app.domain.OtpVerification.class.getName(), jcacheConfiguration);
             // jhipster-needle-redis-add-entry
         };
     }

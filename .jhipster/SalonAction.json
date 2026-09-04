@@ -1,0 +1,46 @@
+{
+  "annotations": {
+    "changelogDate": "20260822180735"
+  },
+  "applications": ["fotolouBackend"],
+  "documentation": "Actions rapides associées à un salon (site web, itinéraire, appel, partage)",
+  "dto": "mapstruct",
+  "fields": [
+    {
+      "fieldName": "label",
+      "fieldType": "String",
+      "fieldValidateRules": ["required", "maxlength"],
+      "fieldValidateRulesMaxlength": "50"
+    },
+    {
+      "fieldName": "icon",
+      "fieldType": "SalonActionIcon",
+      "fieldValidateRules": ["required"],
+      "fieldValues": "GLOBE,PHONE,NAVIGATION,SHARE"
+    },
+    {
+      "fieldName": "href",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "500"
+    },
+    {
+      "fieldName": "sortOrder",
+      "fieldType": "Integer"
+    }
+  ],
+  "name": "SalonAction",
+  "relationships": [
+    {
+      "otherEntityField": "name",
+      "otherEntityName": "salon",
+      "otherEntityRelationshipName": "actions",
+      "relationshipName": "salon",
+      "relationshipSide": "right",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    }
+  ],
+  "searchEngine": "no",
+  "service": "serviceClass"
+}

@@ -32,13 +32,15 @@ spring:
       indent-output: true
   datasource:
     type: com.zaxxer.hikari.HikariDataSource
-    url: jdbc:postgresql://localhost:5432/fotolouBackend
+    url: jdbc:postgresql://localhost:5432/fotolou_db
+    username: fotolou_user
+    password: fotolou_secure_password
     hikari:
       poolName: Hikari
       auto-commit: false
   liquibase:
-    # Remove 'faker' if you do not want the sample data to be loaded automatically
-    contexts: dev, faker
+    # Liquibase dev context without fake demo data
+    contexts: dev
   mail:
     host: localhost
     port: 25
@@ -68,10 +70,8 @@ jhipster:
       # cluster: true
   # CORS is only enabled by default with the "dev" profile
   cors:
-    # Allow Ionic for JHipster by default (* no longer allowed in Spring Boot 2.4+)
-    allowed-origins: 'http://localhost:8100,https://localhost:8100'
-    # Enable CORS when running in GitHub Codespaces
-    allowed-origin-patterns: 'https://*.githubpreview.dev'
+    allowed-origins: 'http://localhost:4200,http://127.0.0.1:4200,http://localhost:8100,https://localhost:8100,https://fotolou.vercel.app'
+    allowed-origin-patterns: 'https://*.githubpreview.dev,http://localhost:*'
     allowed-methods: '*'
     allowed-headers: '*'
     exposed-headers: 'Authorization,Link,X-Total-Count,X-${jhipster.clientApp.name}-alert,X-${jhipster.clientApp.name}-error,X-${jhipster.clientApp.name}-params'

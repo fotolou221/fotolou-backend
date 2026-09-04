@@ -7,6 +7,7 @@ import static com.fotolou.app.security.SecurityUtils.USER_ID_CLAIM;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fotolou.app.security.DomainUserDetailsService.UserWithId;
 import com.fotolou.app.web.rest.vm.LoginVM;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.security.Principal;
 import java.time.Instant;
@@ -32,6 +33,7 @@ import org.springframework.web.bind.annotation.*;
 /**
  * Controller to authenticate users.
  */
+@Tag(name = "1. Authentification & OTP", description = "Authentification JWT administrateur et tokens de session")
 @RestController
 @RequestMapping("/api")
 public class AuthenticateController {

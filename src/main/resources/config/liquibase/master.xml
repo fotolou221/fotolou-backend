@@ -12,7 +12,31 @@
     <property name="timeType" value="time(6)" dbms="postgresql"/>
 
     <include file="config/liquibase/changelog/00000000000000_initial_schema.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260822180734_added_entity_Salon.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260822180735_added_entity_SalonAction.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260822180736_added_entity_CoiffeurProfile.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260822180737_added_entity_Ticket.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260822180738_added_entity_Relative.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260822180739_added_entity_FavoriteSalon.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260822180740_added_entity_ProductCategory.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260822180741_added_entity_Product.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260822180742_added_entity_ProductImage.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260822180743_added_entity_BoutiqueOrder.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260822180744_added_entity_OrderItem.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260822180745_added_entity_AppNotification.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260822180746_added_entity_PlatformSettings.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260822180747_added_entity_OtpVerification.xml" relativeToChangelogFile="false"/>
     <!-- jhipster-needle-liquibase-add-changelog - JHipster will add liquibase changelogs here -->
+    <include file="config/liquibase/changelog/20260822180735_added_entity_constraints_SalonAction.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260822180736_added_entity_constraints_CoiffeurProfile.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260822180737_added_entity_constraints_Ticket.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260822180738_added_entity_constraints_Relative.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260822180739_added_entity_constraints_FavoriteSalon.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260822180741_added_entity_constraints_Product.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260822180742_added_entity_constraints_ProductImage.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260822180743_added_entity_constraints_BoutiqueOrder.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260822180744_added_entity_constraints_OrderItem.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260822180745_added_entity_constraints_AppNotification.xml" relativeToChangelogFile="false"/>
     <!-- jhipster-needle-liquibase-add-constraints-changelog - JHipster will add liquibase constraints changelogs here -->
     <!-- jhipster-needle-liquibase-add-incremental-changelog - JHipster will add incremental liquibase changelogs here -->
 </databaseChangeLog>

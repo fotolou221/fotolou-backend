@@ -95,9 +95,7 @@ spring:
     name: fotolouBackend
   docker:
     compose:
-      enabled: true
-      lifecycle-management: start-only
-      file: src/main/docker/services.yml
+      enabled: false
   profiles:
     # The commented value for `active` can be replaced with valid Spring profiles to load.
     # Otherwise, it will be filled in by maven when building the JAR file
@@ -123,7 +121,7 @@ spring:
       hibernate.type.preferred_instant_jdbc_type: TIMESTAMP
       hibernate.id.new_generator_mappings: true
       hibernate.connection.provider_disables_autocommit: true
-      hibernate.cache.use_second_level_cache: true
+      hibernate.cache.use_second_level_cache: false
       hibernate.cache.use_query_cache: false
       hibernate.generate_statistics: false
       # modify batch size as necessary
@@ -175,6 +173,11 @@ server:
 
 springdoc:
   show-actuator: true
+  swagger-ui:
+    path: /swagger-ui/index.html
+    operations-sorter: method
+    tags-sorter: alpha
+    enabled: true
 
 # Properties to be exposed on the /info management endpoint
 info:
@@ -216,4 +219,23 @@ jhipster:
 # https://www.jhipster.tech/common-application-properties/
 # ===================================================================
 
-# application:
+application:
+  sms:
+    provider: ${SMS_PROVIDER:mock}
+    sender-name: ${SMS_SENDER_NAME:Fotolou}
+    orange-client-id: ${ORANGE_SMS_CLIENT_ID:}
+    orange-client-secret: ${ORANGE_SMS_CLIENT_SECRET:}
+    twilio-account-sid: ${TWILIO_ACCOUNT_SID:}
+    twilio-auth-token: ${TWILIO_AUTH_TOKEN:}
+    twilio-phone-number: ${TWILIO_PHONE_NUMBER:}
+  otp:
+    expiration-seconds: ${OTP_EXPIRATION_SECONDS:300}
+    max-attempts: ${OTP_MAX_ATTEMPTS:3}
+    resend-cooldown-seconds: ${OTP_RESEND_COOLDOWN_SECONDS:45}
+  storage:
+    provider: ${STORAGE_PROVIDER:local}
+    upload-dir: ${STORAGE_UPLOAD_DIR:uploads}
+    cdn-url: ${STORAGE_CDN_URL:/api/files/}
+  business:
+    delivery-fee: ${DELIVERY_FEE:2000}
+    whatsapp-number: ${WHATSAPP_NUMBER:221778627052}

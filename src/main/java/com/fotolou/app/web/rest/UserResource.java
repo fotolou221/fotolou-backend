@@ -10,6 +10,7 @@ import com.fotolou.app.service.dto.AdminUserDTO;
 import com.fotolou.app.web.rest.errors.BadRequestAlertException;
 import com.fotolou.app.web.rest.errors.EmailAlreadyUsedException;
 import com.fotolou.app.web.rest.errors.LoginAlreadyUsedException;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
 import java.net.URI;
@@ -52,9 +53,8 @@ import tech.jhipster.web.util.ResponseUtil;
  * (which will get lots of data from the database, for each HTTP call).</li>
  * <li> As this manages users, for security reasons, we'd rather have a DTO layer.</li>
  * </ul>
- * <p>
- * Another option would be to have a specific JPA entity graph to handle this case.
  */
+@Tag(name = "8. Administration & Statistiques", description = "Administration des utilisateurs")
 @RestController
 @RequestMapping("/api/admin")
 public class UserResource {
