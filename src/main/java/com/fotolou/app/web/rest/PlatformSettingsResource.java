@@ -150,6 +150,23 @@ public class PlatformSettingsResource {
     public ResponseEntity<PlatformSettingsDTO> getPlatformSettings(@PathVariable("id") Long id) {
         LOG.debug("REST request to get PlatformSettings : {}", id);
         Optional<PlatformSettingsDTO> platformSettingsDTO = platformSettingsService.findOne(id);
+        if (platformSettingsDTO.isEmpty()) {
+            List<PlatformSettingsDTO> all = platformSettingsService.findAll();
+            if (!all.isEmpty()) {
+                return ResponseEntity.ok(all.get(0));
+            }
+            // Si aucun paramètre n'existe, créer et retourner des paramètres par défaut
+            PlatformSettingsDTO defaultSettings = new PlatformSettingsDTO();
+            defaultSettings.setAppName("Fotolou");
+            defaultSettings.setContactEmail("support@fotolou.sn");
+            defaultSettings.setContactPhone("+221 77 862 70 52");
+            defaultSettings.setCommissionRate(10.0);
+            defaultSettings.setOpeningTime("09:00");
+            defaultSettings.setClosingTime("21:00");
+            defaultSettings.setAllowRelativeBooking(true);
+            defaultSettings.setMaintenanceMode(false);
+            return ResponseEntity.ok(platformSettingsService.save(defaultSettings));
+        }
         return ResponseUtil.wrapOrNotFound(platformSettingsDTO);
     }
 

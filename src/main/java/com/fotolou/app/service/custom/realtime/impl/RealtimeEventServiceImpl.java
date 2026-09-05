@@ -77,7 +77,7 @@ public class RealtimeEventServiceImpl implements RealtimeEventService {
         List<SseEmitter> deadEmitters = new CopyOnWriteArrayList<>();
         for (SseEmitter emitter : emitters) {
             try {
-                emitter.send(SseEmitter.event().name("PING").data("keep-alive"));
+                emitter.send(SseEmitter.event().comment("ping").name("PING").data("keep-alive"));
             } catch (Exception e) {
                 deadEmitters.add(emitter);
             }
