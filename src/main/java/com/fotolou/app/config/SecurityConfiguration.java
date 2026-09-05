@@ -45,25 +45,21 @@ public class SecurityConfiguration {
                     .permitAll()
                     .requestMatchers("/api/auth/**")
                     .permitAll()
-                    .requestMatchers(HttpMethod.GET, "/api/salons", "/api/salons/**")
+                    .requestMatchers("/api/salons", "/api/salons/**")
                     .permitAll()
-                    .requestMatchers(
-                        HttpMethod.GET,
-                        "/api/coiffeurs",
-                        "/api/coiffeurs/**",
-                        "/api/coiffeur-profiles",
-                        "/api/coiffeur-profiles/**"
-                    )
+                    .requestMatchers("/api/coiffeurs", "/api/coiffeurs/**", "/api/coiffeur-profiles", "/api/coiffeur-profiles/**")
                     .permitAll()
-                    .requestMatchers(HttpMethod.GET, "/api/products", "/api/products/**")
+                    .requestMatchers("/api/products", "/api/products/**")
                     .permitAll()
-                    .requestMatchers(HttpMethod.GET, "/api/categories", "/api/categories/**")
+                    .requestMatchers("/api/categories", "/api/categories/**")
                     .permitAll()
-                    .requestMatchers(HttpMethod.GET, "/api/product-categories", "/api/product-categories/**")
+                    .requestMatchers("/api/product-categories", "/api/product-categories/**")
                     .permitAll()
-                    .requestMatchers(HttpMethod.GET, "/api/files/**", "/api/storage/**")
+                    .requestMatchers("/api/files/**", "/api/storage/**")
                     .permitAll()
-                    .requestMatchers(HttpMethod.GET, "/api/platform-settings", "/api/platform-settings/**")
+                    .requestMatchers("/api/realtime/**")
+                    .permitAll()
+                    .requestMatchers("/api/platform-settings", "/api/platform-settings/**")
                     .permitAll()
                     .requestMatchers("/api/tickets", "/api/tickets/**")
                     .permitAll()

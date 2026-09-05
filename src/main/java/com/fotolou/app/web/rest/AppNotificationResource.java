@@ -1,16 +1,21 @@
 package com.fotolou.app.web.rest;
 
+import com.fotolou.app.domain.AppNotification;
 import com.fotolou.app.repository.AppNotificationRepository;
+import com.fotolou.app.security.AuthoritiesConstants;
+import com.fotolou.app.security.SecurityUtils;
 import com.fotolou.app.service.AppNotificationQueryService;
 import com.fotolou.app.service.AppNotificationService;
 import com.fotolou.app.service.criteria.AppNotificationCriteria;
 import com.fotolou.app.service.dto.AppNotificationDTO;
+import com.fotolou.app.service.mapper.AppNotificationMapper;
 import com.fotolou.app.web.rest.errors.BadRequestAlertException;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -44,18 +49,22 @@ public class AppNotificationResource {
 
     private final AppNotificationService appNotificationService;
 
+    private final AppNotificationQueryService appNotificationQueryService;
+
     private final AppNotificationRepository appNotificationRepository;
 
-    private final AppNotificationQueryService appNotificationQueryService;
+    private final AppNotificationMapper appNotificationMapper;
 
     public AppNotificationResource(
         AppNotificationService appNotificationService,
+        AppNotificationQueryService appNotificationQueryService,
         AppNotificationRepository appNotificationRepository,
-        AppNotificationQueryService appNotificationQueryService
+        AppNotificationMapper appNotificationMapper
     ) {
         this.appNotificationService = appNotificationService;
-        this.appNotificationRepository = appNotificationRepository;
         this.appNotificationQueryService = appNotificationQueryService;
+        this.appNotificationRepository = appNotificationRepository;
+        this.appNotificationMapper = appNotificationMapper;
     }
 
     /**
@@ -101,7 +110,7 @@ public class AppNotificationResource {
             throw new BadRequestAlertException("Invalid ID", ENTITY_NAME, "idinvalid");
         }
 
-        if (!appNotificationRepository.existsById(id)) {
+        if (!appNotificationService.existsById(id)) {
             throw new BadRequestAlertException("Entity not found", ENTITY_NAME, "idnotfound");
         }
 
@@ -129,13 +138,13 @@ public class AppNotificationResource {
     ) throws URISyntaxException {
         LOG.debug("REST request to partial update AppNotification partially : {}, {}", id, appNotificationDTO);
         if (appNotificationDTO.getId() == null) {
-            throw new BadRequestAlertException("Invalid id", ENTITY_NAME, "idnull");
+            appNotificationDTO.setId(id);
         }
         if (!Objects.equals(id, appNotificationDTO.getId())) {
             throw new BadRequestAlertException("Invalid ID", ENTITY_NAME, "idinvalid");
         }
 
-        if (!appNotificationRepository.existsById(id)) {
+        if (!appNotificationService.existsById(id)) {
             throw new BadRequestAlertException("Entity not found", ENTITY_NAME, "idnotfound");
         }
 
@@ -145,6 +154,54 @@ public class AppNotificationResource {
             result,
             HeaderUtil.createEntityUpdateAlert(applicationName, true, ENTITY_NAME, appNotificationDTO.getId().toString())
         );
+    }
+
+    /**
+     * {@code PATCH /app-notifications/:id/read} : Mark single notification as read.
+     */
+    @PatchMapping("/{id}/read")
+    public ResponseEntity<AppNotificationDTO> markAsRead(@PathVariable("id") Long id) {
+        LOG.debug("REST request to mark AppNotification as read : {}", id);
+        AppNotificationDTO dto = new AppNotificationDTO();
+        dto.setId(id);
+        dto.setIsRead(true);
+        Optional<AppNotificationDTO> result = appNotificationService.partialUpdate(dto);
+        return ResponseUtil.wrapOrNotFound(result);
+    }
+
+    /**
+     * {@code PUT /app-notifications/mark-all-read} : Mark all notifications of current user as read.
+     */
+    @PutMapping("/mark-all-read")
+    public ResponseEntity<Void> markAllAsRead() {
+        Optional<String> currentUserLogin = SecurityUtils.getCurrentUserLogin();
+        if (currentUserLogin.isPresent()) {
+            List<AppNotification> notifs = appNotificationRepository.findByUserLoginOrderByCreatedDateDesc(currentUserLogin.get());
+            for (AppNotification n : notifs) {
+                if (!Boolean.TRUE.equals(n.getIsRead())) {
+                    n.setIsRead(true);
+                    appNotificationRepository.save(n);
+                }
+            }
+        }
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * {@code GET /app-notifications/my-notifications} : Get notifications for current user.
+     */
+    @GetMapping("/my-notifications")
+    public ResponseEntity<List<AppNotificationDTO>> getMyNotifications() {
+        if (!SecurityUtils.isAuthenticated()) {
+            List<AppNotification> allNotifs = appNotificationRepository.findAllByOrderByCreatedDateDesc();
+            return ResponseEntity.ok(appNotificationMapper.toDto(allNotifs));
+        }
+        Optional<String> currentUserLogin = SecurityUtils.getCurrentUserLogin();
+        if (currentUserLogin.isEmpty()) {
+            return ResponseEntity.ok(Collections.emptyList());
+        }
+        List<AppNotification> notifs = appNotificationRepository.findByUserLoginOrderByCreatedDateDesc(currentUserLogin.get());
+        return ResponseEntity.ok(appNotificationMapper.toDto(notifs));
     }
 
     /**
@@ -161,9 +218,16 @@ public class AppNotificationResource {
     ) {
         LOG.debug("REST request to get AppNotifications by criteria: {}", criteria);
 
-        Page<AppNotificationDTO> page = appNotificationQueryService.findByCriteria(criteria, pageable);
-        HttpHeaders headers = PaginationUtil.generatePaginationHttpHeaders(ServletUriComponentsBuilder.fromCurrentRequest(), page);
-        return ResponseEntity.ok().headers(headers).body(page.getContent());
+        if (SecurityUtils.isAuthenticated() && !SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN)) {
+            Optional<String> currentUserLogin = SecurityUtils.getCurrentUserLogin();
+            if (currentUserLogin.isPresent()) {
+                List<AppNotification> userNotifs = appNotificationRepository.findByUserLoginOrderByCreatedDateDesc(currentUserLogin.get());
+                return ResponseEntity.ok().body(appNotificationMapper.toDto(userNotifs));
+            }
+        }
+
+        List<AppNotification> allNotifs = appNotificationRepository.findAllByOrderByCreatedDateDesc();
+        return ResponseEntity.ok().body(appNotificationMapper.toDto(allNotifs));
     }
 
     /**

@@ -1,6 +1,5 @@
 package com.fotolou.app.web.rest;
 
-import com.fotolou.app.repository.ProductCategoryRepository;
 import com.fotolou.app.service.ProductCategoryService;
 import com.fotolou.app.service.dto.ProductCategoryDTO;
 import com.fotolou.app.web.rest.errors.BadRequestAlertException;
@@ -42,11 +41,8 @@ public class ProductCategoryResource {
 
     private final ProductCategoryService productCategoryService;
 
-    private final ProductCategoryRepository productCategoryRepository;
-
-    public ProductCategoryResource(ProductCategoryService productCategoryService, ProductCategoryRepository productCategoryRepository) {
+    public ProductCategoryResource(ProductCategoryService productCategoryService) {
         this.productCategoryService = productCategoryService;
-        this.productCategoryRepository = productCategoryRepository;
     }
 
     /**
@@ -92,7 +88,7 @@ public class ProductCategoryResource {
             throw new BadRequestAlertException("Invalid ID", ENTITY_NAME, "idinvalid");
         }
 
-        if (!productCategoryRepository.existsById(id)) {
+        if (!productCategoryService.existsById(id)) {
             throw new BadRequestAlertException("Entity not found", ENTITY_NAME, "idnotfound");
         }
 
@@ -126,7 +122,7 @@ public class ProductCategoryResource {
             throw new BadRequestAlertException("Invalid ID", ENTITY_NAME, "idinvalid");
         }
 
-        if (!productCategoryRepository.existsById(id)) {
+        if (!productCategoryService.existsById(id)) {
             throw new BadRequestAlertException("Entity not found", ENTITY_NAME, "idnotfound");
         }
 

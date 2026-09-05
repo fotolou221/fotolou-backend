@@ -1,6 +1,5 @@
 package com.fotolou.app.web.rest;
 
-import com.fotolou.app.repository.BoutiqueOrderRepository;
 import com.fotolou.app.service.BoutiqueOrderQueryService;
 import com.fotolou.app.service.BoutiqueOrderService;
 import com.fotolou.app.service.criteria.BoutiqueOrderCriteria;
@@ -44,17 +43,10 @@ public class BoutiqueOrderResource {
 
     private final BoutiqueOrderService boutiqueOrderService;
 
-    private final BoutiqueOrderRepository boutiqueOrderRepository;
-
     private final BoutiqueOrderQueryService boutiqueOrderQueryService;
 
-    public BoutiqueOrderResource(
-        BoutiqueOrderService boutiqueOrderService,
-        BoutiqueOrderRepository boutiqueOrderRepository,
-        BoutiqueOrderQueryService boutiqueOrderQueryService
-    ) {
+    public BoutiqueOrderResource(BoutiqueOrderService boutiqueOrderService, BoutiqueOrderQueryService boutiqueOrderQueryService) {
         this.boutiqueOrderService = boutiqueOrderService;
-        this.boutiqueOrderRepository = boutiqueOrderRepository;
         this.boutiqueOrderQueryService = boutiqueOrderQueryService;
     }
 
@@ -101,7 +93,7 @@ public class BoutiqueOrderResource {
             throw new BadRequestAlertException("Invalid ID", ENTITY_NAME, "idinvalid");
         }
 
-        if (!boutiqueOrderRepository.existsById(id)) {
+        if (!boutiqueOrderService.existsById(id)) {
             throw new BadRequestAlertException("Entity not found", ENTITY_NAME, "idnotfound");
         }
 
@@ -135,7 +127,7 @@ public class BoutiqueOrderResource {
             throw new BadRequestAlertException("Invalid ID", ENTITY_NAME, "idinvalid");
         }
 
-        if (!boutiqueOrderRepository.existsById(id)) {
+        if (!boutiqueOrderService.existsById(id)) {
             throw new BadRequestAlertException("Entity not found", ENTITY_NAME, "idnotfound");
         }
 

@@ -1,6 +1,7 @@
 package com.fotolou.app.repository;
 
 import com.fotolou.app.domain.Salon;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.stereotype.Repository;
 
@@ -9,4 +10,7 @@ import org.springframework.stereotype.Repository;
  */
 @SuppressWarnings("unused")
 @Repository
-public interface SalonRepository extends JpaRepository<Salon, Long>, JpaSpecificationExecutor<Salon> {}
+public interface SalonRepository extends JpaRepository<Salon, Long>, JpaSpecificationExecutor<Salon> {
+    Optional<Salon> findOneBySlug(String slug);
+    boolean existsBySlug(String slug);
+}

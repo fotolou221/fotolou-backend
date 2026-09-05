@@ -2,6 +2,7 @@ package com.fotolou.app.web.rest;
 
 import static com.fotolou.app.security.SecurityUtils.AUTHORITIES_CLAIM;
 import static com.fotolou.app.security.SecurityUtils.JWT_ALGORITHM;
+import static com.fotolou.app.security.SecurityUtils.TOKEN_TYPE_CLAIM;
 import static com.fotolou.app.security.SecurityUtils.USER_ID_CLAIM;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -42,10 +43,10 @@ public class AuthenticateController {
 
     private final JwtEncoder jwtEncoder;
 
-    @Value("${jhipster.security.authentication.jwt.token-validity-in-seconds:0}")
+    @Value("${jhipster.security.authentication.jwt.token-validity-in-seconds:900}")
     private long tokenValidityInSeconds;
 
-    @Value("${jhipster.security.authentication.jwt.token-validity-in-seconds-for-remember-me:0}")
+    @Value("${jhipster.security.authentication.jwt.token-validity-in-seconds-for-remember-me:3888000}")
     private long tokenValidityInSecondsForRememberMe;
 
     private final AuthenticationManagerBuilder authenticationManagerBuilder;
@@ -61,10 +62,11 @@ public class AuthenticateController {
 
         var authentication = authenticationManagerBuilder.getObject().authenticate(authenticationToken);
         SecurityContextHolder.getContext().setAuthentication(authentication);
-        String jwt = this.createToken(authentication, loginVM.isRememberMe());
+        String jwt = this.createToken(authentication);
+        String refreshToken = this.createRefreshToken(authentication);
         var httpHeaders = new HttpHeaders();
         httpHeaders.setBearerAuth(jwt);
-        return new ResponseEntity<>(new JWTToken(jwt), httpHeaders, HttpStatus.OK);
+        return new ResponseEntity<>(new JWTToken(jwt, refreshToken), httpHeaders, HttpStatus.OK);
     }
 
     /**
@@ -79,23 +81,35 @@ public class AuthenticateController {
         return ResponseEntity.status(principal == null ? HttpStatus.UNAUTHORIZED : HttpStatus.NO_CONTENT).build();
     }
 
-    public String createToken(Authentication authentication, boolean rememberMe) {
+    public String createToken(Authentication authentication) {
         String authorities = authentication.getAuthorities().stream().map(GrantedAuthority::getAuthority).collect(Collectors.joining(" "));
 
         var now = Instant.now();
-        Instant validity;
-        if (rememberMe) {
-            validity = now.plus(this.tokenValidityInSecondsForRememberMe, ChronoUnit.SECONDS);
-        } else {
-            validity = now.plus(this.tokenValidityInSeconds, ChronoUnit.SECONDS);
-        }
+        Instant validity = now.plus(this.tokenValidityInSeconds, ChronoUnit.SECONDS);
 
-        // @formatter:off
         JwtClaimsSet.Builder builder = JwtClaimsSet.builder()
             .issuedAt(now)
             .expiresAt(validity)
             .subject(authentication.getName())
-            .claim(AUTHORITIES_CLAIM, authorities);
+            .claim(AUTHORITIES_CLAIM, authorities)
+            .claim(TOKEN_TYPE_CLAIM, "ACCESS");
+        if (authentication.getPrincipal() instanceof UserWithId user) {
+            builder.claim(USER_ID_CLAIM, user.getId());
+        }
+
+        JwsHeader jwsHeader = JwsHeader.with(JWT_ALGORITHM).build();
+        return this.jwtEncoder.encode(JwtEncoderParameters.from(jwsHeader, builder.build())).getTokenValue();
+    }
+
+    public String createRefreshToken(Authentication authentication) {
+        var now = Instant.now();
+        Instant validity = now.plus(this.tokenValidityInSecondsForRememberMe, ChronoUnit.SECONDS);
+
+        JwtClaimsSet.Builder builder = JwtClaimsSet.builder()
+            .issuedAt(now)
+            .expiresAt(validity)
+            .subject(authentication.getName())
+            .claim(TOKEN_TYPE_CLAIM, "REFRESH");
         if (authentication.getPrincipal() instanceof UserWithId user) {
             builder.claim(USER_ID_CLAIM, user.getId());
         }
@@ -110,9 +124,11 @@ public class AuthenticateController {
     static class JWTToken {
 
         private String idToken;
+        private String refreshToken;
 
-        JWTToken(String idToken) {
+        JWTToken(String idToken, String refreshToken) {
             this.idToken = idToken;
+            this.refreshToken = refreshToken;
         }
 
         @JsonProperty("id_token")
@@ -120,8 +136,27 @@ public class AuthenticateController {
             return idToken;
         }
 
+        @JsonProperty("token")
+        String getToken() {
+            return idToken;
+        }
+
+        @JsonProperty("refresh_token")
+        String getRefreshToken() {
+            return refreshToken;
+        }
+
+        @JsonProperty("refreshToken")
+        String getAltRefreshToken() {
+            return refreshToken;
+        }
+
         void setIdToken(String idToken) {
             this.idToken = idToken;
+        }
+
+        void setRefreshToken(String refreshToken) {
+            this.refreshToken = refreshToken;
         }
     }
 }

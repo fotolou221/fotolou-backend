@@ -119,9 +119,10 @@ public class ApplicationProperties {
 
     public static class Storage {
 
-        private String provider = "local";
+        private String provider = "cloudinary";
         private String uploadDir = "uploads";
         private String cdnUrl = "/api/files/";
+        private CloudinaryProperties cloudinary = new CloudinaryProperties();
 
         public String getProvider() {
             return provider;
@@ -145,6 +146,54 @@ public class ApplicationProperties {
 
         public void setCdnUrl(String cdnUrl) {
             this.cdnUrl = cdnUrl;
+        }
+
+        public CloudinaryProperties getCloudinary() {
+            return cloudinary;
+        }
+
+        public void setCloudinary(CloudinaryProperties cloudinary) {
+            this.cloudinary = cloudinary;
+        }
+
+        public static class CloudinaryProperties {
+
+            private String cloudName;
+            private String apiKey;
+            private String apiSecret;
+            private String url;
+
+            public String getCloudName() {
+                return cloudName;
+            }
+
+            public void setCloudName(String cloudName) {
+                this.cloudName = cloudName;
+            }
+
+            public String getApiKey() {
+                return apiKey;
+            }
+
+            public void setApiKey(String apiKey) {
+                this.apiKey = apiKey;
+            }
+
+            public String getApiSecret() {
+                return apiSecret;
+            }
+
+            public void setApiSecret(String apiSecret) {
+                this.apiSecret = apiSecret;
+            }
+
+            public String getUrl() {
+                return url;
+            }
+
+            public void setUrl(String url) {
+                this.url = url;
+            }
         }
     }
 

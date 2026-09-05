@@ -1,8 +1,5 @@
 package com.fotolou.app.web.rest;
 
-import com.fotolou.app.repository.RelativeRepository;
-import com.fotolou.app.repository.UserRepository;
-import com.fotolou.app.security.SecurityUtils;
 import com.fotolou.app.service.RelativeService;
 import com.fotolou.app.service.dto.RelativeDTO;
 import com.fotolou.app.service.dto.UserDTO;
@@ -44,13 +41,9 @@ public class RelativeResource {
     private String applicationName;
 
     private final RelativeService relativeService;
-    private final RelativeRepository relativeRepository;
-    private final UserRepository userRepository;
 
-    public RelativeResource(RelativeService relativeService, RelativeRepository relativeRepository, UserRepository userRepository) {
+    public RelativeResource(RelativeService relativeService) {
         this.relativeService = relativeService;
-        this.relativeRepository = relativeRepository;
-        this.userRepository = userRepository;
     }
 
     /**
@@ -65,16 +58,6 @@ public class RelativeResource {
         LOG.debug("REST request to save Relative : {}", relativeDTO);
         if (relativeDTO.getId() != null) {
             throw new BadRequestAlertException("A new relative cannot already have an ID", ENTITY_NAME, "idexists");
-        }
-        if (relativeDTO.getUser() == null) {
-            SecurityUtils.getCurrentUserLogin()
-                .flatMap(userRepository::findOneByLogin)
-                .ifPresent(u -> {
-                    UserDTO userDTO = new UserDTO();
-                    userDTO.setId(u.getId());
-                    userDTO.setLogin(u.getLogin());
-                    relativeDTO.setUser(userDTO);
-                });
         }
         RelativeDTO result = relativeService.save(relativeDTO);
         return ResponseEntity.created(new URI("/api/relatives/" + result.getId()))
@@ -105,7 +88,7 @@ public class RelativeResource {
             throw new BadRequestAlertException("Invalid ID", ENTITY_NAME, "idinvalid");
         }
 
-        if (!relativeRepository.existsById(id)) {
+        if (!relativeService.existsById(id)) {
             throw new BadRequestAlertException("Entity not found", ENTITY_NAME, "idnotfound");
         }
 
@@ -139,7 +122,7 @@ public class RelativeResource {
             throw new BadRequestAlertException("Invalid ID", ENTITY_NAME, "idinvalid");
         }
 
-        if (!relativeRepository.existsById(id)) {
+        if (!relativeService.existsById(id)) {
             throw new BadRequestAlertException("Entity not found", ENTITY_NAME, "idnotfound");
         }
 

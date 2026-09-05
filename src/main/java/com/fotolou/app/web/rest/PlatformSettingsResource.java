@@ -1,6 +1,5 @@
 package com.fotolou.app.web.rest;
 
-import com.fotolou.app.repository.PlatformSettingsRepository;
 import com.fotolou.app.service.PlatformSettingsService;
 import com.fotolou.app.service.dto.PlatformSettingsDTO;
 import com.fotolou.app.web.rest.errors.BadRequestAlertException;
@@ -37,14 +36,8 @@ public class PlatformSettingsResource {
 
     private final PlatformSettingsService platformSettingsService;
 
-    private final PlatformSettingsRepository platformSettingsRepository;
-
-    public PlatformSettingsResource(
-        PlatformSettingsService platformSettingsService,
-        PlatformSettingsRepository platformSettingsRepository
-    ) {
+    public PlatformSettingsResource(PlatformSettingsService platformSettingsService) {
         this.platformSettingsService = platformSettingsService;
-        this.platformSettingsRepository = platformSettingsRepository;
     }
 
     /**
@@ -90,7 +83,7 @@ public class PlatformSettingsResource {
             throw new BadRequestAlertException("Invalid ID", ENTITY_NAME, "idinvalid");
         }
 
-        if (!platformSettingsRepository.existsById(id)) {
+        if (!platformSettingsService.existsById(id)) {
             throw new BadRequestAlertException("Entity not found", ENTITY_NAME, "idnotfound");
         }
 
@@ -124,7 +117,7 @@ public class PlatformSettingsResource {
             throw new BadRequestAlertException("Invalid ID", ENTITY_NAME, "idinvalid");
         }
 
-        if (!platformSettingsRepository.existsById(id)) {
+        if (!platformSettingsService.existsById(id)) {
             throw new BadRequestAlertException("Entity not found", ENTITY_NAME, "idnotfound");
         }
 

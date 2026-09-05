@@ -19,6 +19,10 @@ public interface TicketRepository extends JpaRepository<Ticket, Long>, JpaSpecif
 
     List<Ticket> findBySalonIdAndCategoryOrderByTicketNumberAsc(Long salonId, com.fotolou.app.domain.enumeration.TicketCategory category);
 
+    List<Ticket> findBySalonIdOrderByCreatedDateDesc(Long salonId);
+
+    List<Ticket> findBySalonIdOrderByTicketNumberAsc(Long salonId);
+
     List<Ticket> findBySalonIdAndStatusInOrderByTicketNumberAsc(
         Long salonId,
         List<com.fotolou.app.domain.enumeration.TicketStatus> statuses

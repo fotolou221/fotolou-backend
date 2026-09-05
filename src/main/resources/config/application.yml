@@ -233,9 +233,14 @@ application:
     max-attempts: ${OTP_MAX_ATTEMPTS:3}
     resend-cooldown-seconds: ${OTP_RESEND_COOLDOWN_SECONDS:45}
   storage:
-    provider: ${STORAGE_PROVIDER:local}
+    provider: ${STORAGE_PROVIDER:cloudinary}
     upload-dir: ${STORAGE_UPLOAD_DIR:uploads}
     cdn-url: ${STORAGE_CDN_URL:/api/files/}
+    cloudinary:
+      cloud-name: ${CLOUDINARY_CLOUD_NAME:}
+      api-key: ${CLOUDINARY_API_KEY:}
+      api-secret: ${CLOUDINARY_API_SECRET:}
+      url: ${CLOUDINARY_URL:}
   business:
     delivery-fee: ${DELIVERY_FEE:2000}
     whatsapp-number: ${WHATSAPP_NUMBER:221778627052}

@@ -42,4 +42,11 @@ public interface CoiffeurProfileRepository extends JpaRepository<CoiffeurProfile
         "select coiffeurProfile from CoiffeurProfile coiffeurProfile left join fetch coiffeurProfile.salon where coiffeurProfile.id =:id"
     )
     Optional<CoiffeurProfile> findOneWithToOneRelationships(@Param("id") Long id);
+
+    Optional<CoiffeurProfile> findByPhone(String phone);
+
+    @Query("select cp from CoiffeurProfile cp left join fetch cp.salon where cp.user.login = :login")
+    Optional<CoiffeurProfile> findOneWithSalonByUserLogin(@Param("login") String login);
+
+    List<CoiffeurProfile> findBySalonId(Long salonId);
 }

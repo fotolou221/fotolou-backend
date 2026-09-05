@@ -1,6 +1,5 @@
 package com.fotolou.app.web.rest;
 
-import com.fotolou.app.repository.SalonRepository;
 import com.fotolou.app.service.SalonQueryService;
 import com.fotolou.app.service.SalonService;
 import com.fotolou.app.service.criteria.SalonCriteria;
@@ -44,14 +43,43 @@ public class SalonResource {
 
     private final SalonService salonService;
 
-    private final SalonRepository salonRepository;
-
     private final SalonQueryService salonQueryService;
 
-    public SalonResource(SalonService salonService, SalonRepository salonRepository, SalonQueryService salonQueryService) {
+    private final com.fotolou.app.service.custom.salon.SalonCustomService salonCustomService;
+
+    private final com.fotolou.app.service.custom.realtime.RealtimeEventService realtimeEventService;
+    private final com.fotolou.app.repository.UserRepository userRepository;
+    private final com.fotolou.app.repository.AuthorityRepository authorityRepository;
+    private final com.fotolou.app.repository.CoiffeurProfileRepository coiffeurProfileRepository;
+    private final com.fotolou.app.repository.SalonRepository salonRepository;
+    private final com.fotolou.app.repository.TicketRepository ticketRepository;
+    private final org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+    private final com.fotolou.app.service.mapper.SalonMapper salonMapper;
+
+    public SalonResource(
+        SalonService salonService,
+        SalonQueryService salonQueryService,
+        com.fotolou.app.service.custom.salon.SalonCustomService salonCustomService,
+        com.fotolou.app.service.custom.realtime.RealtimeEventService realtimeEventService,
+        com.fotolou.app.repository.UserRepository userRepository,
+        com.fotolou.app.repository.AuthorityRepository authorityRepository,
+        com.fotolou.app.repository.CoiffeurProfileRepository coiffeurProfileRepository,
+        com.fotolou.app.repository.SalonRepository salonRepository,
+        com.fotolou.app.repository.TicketRepository ticketRepository,
+        org.springframework.security.crypto.password.PasswordEncoder passwordEncoder,
+        com.fotolou.app.service.mapper.SalonMapper salonMapper
+    ) {
         this.salonService = salonService;
-        this.salonRepository = salonRepository;
         this.salonQueryService = salonQueryService;
+        this.salonCustomService = salonCustomService;
+        this.realtimeEventService = realtimeEventService;
+        this.userRepository = userRepository;
+        this.authorityRepository = authorityRepository;
+        this.coiffeurProfileRepository = coiffeurProfileRepository;
+        this.salonRepository = salonRepository;
+        this.ticketRepository = ticketRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.salonMapper = salonMapper;
     }
 
     /**
@@ -68,6 +96,49 @@ public class SalonResource {
             throw new BadRequestAlertException("A new salon cannot already have an ID", ENTITY_NAME, "idexists");
         }
         salonDTO = salonService.save(salonDTO);
+
+        // Auto-provision ou association du compte Coiffeur Propriétaire avec ROLE_COIFFEUR
+        if (salonDTO.getPhone() != null && !salonDTO.getPhone().isBlank()) {
+            final String cleanPhone = salonDTO.getPhone().trim().replace(" ", "");
+            final String salonName = salonDTO.getName();
+            com.fotolou.app.domain.Salon salonEntity = salonRepository.findById(salonDTO.getId()).orElse(null);
+
+            if (salonEntity != null) {
+                com.fotolou.app.domain.User ownerUser = userRepository.findOneWithAuthoritiesByLogin(cleanPhone).orElseGet(() -> {
+                    com.fotolou.app.domain.User u = new com.fotolou.app.domain.User();
+                    u.setLogin(cleanPhone);
+                    u.setPassword(passwordEncoder.encode(cleanPhone + "_fotolou_secret_key"));
+                    u.setFirstName(salonName);
+                    u.setLastName("Propriétaire");
+                    u.setEmail(cleanPhone.replace("+", "") + "@fotolou.sn");
+                    u.setActivated(true);
+                    u.setLangKey("fr");
+                    return u;
+                });
+
+                java.util.Set<com.fotolou.app.domain.Authority> auths = new java.util.HashSet<>(ownerUser.getAuthorities());
+                authorityRepository.findById(com.fotolou.app.security.AuthoritiesConstants.COIFFEUR).ifPresent(auths::add);
+                authorityRepository.findById(com.fotolou.app.security.AuthoritiesConstants.USER).ifPresent(auths::add);
+                auths.removeIf(a -> com.fotolou.app.security.AuthoritiesConstants.CLIENT.equals(a.getName()));
+                ownerUser.setAuthorities(auths);
+                ownerUser = userRepository.save(ownerUser);
+
+                final com.fotolou.app.domain.User finalOwner = ownerUser;
+                com.fotolou.app.domain.CoiffeurProfile profile = coiffeurProfileRepository.findByPhone(cleanPhone).orElseGet(() -> {
+                    com.fotolou.app.domain.CoiffeurProfile cp = new com.fotolou.app.domain.CoiffeurProfile();
+                    cp.setPhone(cleanPhone);
+                    cp.setCreatedDate(java.time.Instant.now());
+                    return cp;
+                });
+                profile.setName(salonName + " (Propriétaire)");
+                profile.setUser(finalOwner);
+                profile.setSalon(salonEntity);
+                profile.setActive(true);
+                coiffeurProfileRepository.save(profile);
+            }
+        }
+
+        realtimeEventService.broadcast("SALON_CREATED", salonDTO);
         return ResponseEntity.created(new URI("/api/salons/" + salonDTO.getId()))
             .headers(HeaderUtil.createEntityCreationAlert(applicationName, true, ENTITY_NAME, salonDTO.getId().toString()))
             .body(salonDTO);
@@ -96,11 +167,12 @@ public class SalonResource {
             throw new BadRequestAlertException("Invalid ID", ENTITY_NAME, "idinvalid");
         }
 
-        if (!salonRepository.existsById(id)) {
+        if (!salonService.existsById(id)) {
             throw new BadRequestAlertException("Entity not found", ENTITY_NAME, "idnotfound");
         }
 
         salonDTO = salonService.update(salonDTO);
+        realtimeEventService.broadcast("SALON_UPDATED", salonDTO);
         return ResponseEntity.ok()
             .headers(HeaderUtil.createEntityUpdateAlert(applicationName, true, ENTITY_NAME, salonDTO.getId().toString()))
             .body(salonDTO);
@@ -124,22 +196,45 @@ public class SalonResource {
     ) throws URISyntaxException {
         LOG.debug("REST request to partial update Salon partially : {}, {}", id, salonDTO);
         if (salonDTO.getId() == null) {
-            throw new BadRequestAlertException("Invalid id", ENTITY_NAME, "idnull");
+            salonDTO.setId(id);
         }
         if (!Objects.equals(id, salonDTO.getId())) {
             throw new BadRequestAlertException("Invalid ID", ENTITY_NAME, "idinvalid");
         }
 
-        if (!salonRepository.existsById(id)) {
+        if (!salonService.existsById(id)) {
             throw new BadRequestAlertException("Entity not found", ENTITY_NAME, "idnotfound");
         }
 
         Optional<SalonDTO> result = salonService.partialUpdate(salonDTO);
+        result.ifPresent(dto -> realtimeEventService.broadcast("SALON_UPDATED", dto));
 
         return ResponseUtil.wrapOrNotFound(
             result,
             HeaderUtil.createEntityUpdateAlert(applicationName, true, ENTITY_NAME, salonDTO.getId().toString())
         );
+    }
+
+    /**
+     * {@code PUT /salons/:id/toggle-status} : Bascule l'état d'ouverture/fermeture du salon.
+     */
+    @PutMapping("/{id}/toggle-status")
+    public ResponseEntity<SalonDTO> toggleSalonStatus(@PathVariable("id") Long id) {
+        LOG.debug("REST request to toggle Salon status : {}", id);
+        com.fotolou.app.domain.Salon salon = salonRepository
+            .findById(id)
+            .orElseThrow(() -> new BadRequestAlertException("Salon not found", ENTITY_NAME, "idnotfound"));
+
+        com.fotolou.app.domain.enumeration.SalonStatus nextStatus =
+            salon.getStatus() == com.fotolou.app.domain.enumeration.SalonStatus.OPEN
+                ? com.fotolou.app.domain.enumeration.SalonStatus.CLOSED
+                : com.fotolou.app.domain.enumeration.SalonStatus.OPEN;
+
+        salon.setStatus(nextStatus);
+        com.fotolou.app.domain.Salon saved = salonRepository.save(salon);
+        SalonDTO dto = salonMapper.toDto(saved);
+        realtimeEventService.broadcast("SALON_UPDATED", dto);
+        return ResponseEntity.ok(dto);
     }
 
     /**
@@ -157,6 +252,14 @@ public class SalonResource {
         LOG.debug("REST request to get Salons by criteria: {}", criteria);
 
         Page<SalonDTO> page = salonQueryService.findByCriteria(criteria, pageable);
+        page.getContent().forEach(dto -> {
+            long liveWaiting = ticketRepository.countBySalonIdAndStatusIn(
+                dto.getId(),
+                List.of(com.fotolou.app.domain.enumeration.TicketStatus.WAITING, com.fotolou.app.domain.enumeration.TicketStatus.YOUR_TURN)
+            );
+            dto.setPeopleWaiting((int) liveWaiting);
+            dto.setEstimatedWaitMinutes((int) liveWaiting * 20);
+        });
         HttpHeaders headers = PaginationUtil.generatePaginationHttpHeaders(ServletUriComponentsBuilder.fromCurrentRequest(), page);
         return ResponseEntity.ok().headers(headers).body(page.getContent());
     }
@@ -174,16 +277,35 @@ public class SalonResource {
     }
 
     /**
-     * {@code GET  /salons/:id} : get the "id" salon.
+     * {@code GET  /salons/:idOrSlug} : get the "id" or "slug" salon.
      *
-     * @param id the id of the salonDTO to retrieve.
+     * @param idOrSlug the id or slug of the salonDTO to retrieve.
      * @return the {@link ResponseEntity} with status {@code 200 (OK)} and with body the salonDTO, or with status {@code 404 (Not Found)}.
      */
-    @GetMapping("/{id}")
-    public ResponseEntity<SalonDTO> getSalon(@PathVariable("id") Long id) {
-        LOG.debug("REST request to get Salon : {}", id);
-        Optional<SalonDTO> salonDTO = salonService.findOne(id);
-        return ResponseUtil.wrapOrNotFound(salonDTO);
+    @GetMapping("/{idOrSlug}")
+    public ResponseEntity<SalonDTO> getSalon(@PathVariable("idOrSlug") String idOrSlug) {
+        LOG.debug("REST request to get Salon by id or slug : {}", idOrSlug);
+        Optional<SalonDTO> result = Optional.empty();
+        try {
+            Long id = Long.parseLong(idOrSlug);
+            result = salonService.findOne(id);
+        } catch (NumberFormatException ignored) {
+            // Non-numeric ID, lookup by slug
+        }
+        if (result.isEmpty()) {
+            result = salonCustomService.findBySlug(idOrSlug);
+        }
+
+        result.ifPresent(dto -> {
+            long liveWaiting = ticketRepository.countBySalonIdAndStatusIn(
+                dto.getId(),
+                List.of(com.fotolou.app.domain.enumeration.TicketStatus.WAITING, com.fotolou.app.domain.enumeration.TicketStatus.YOUR_TURN)
+            );
+            dto.setPeopleWaiting((int) liveWaiting);
+            dto.setEstimatedWaitMinutes((int) liveWaiting * 20);
+        });
+
+        return ResponseUtil.wrapOrNotFound(result);
     }
 
     /**
@@ -196,6 +318,7 @@ public class SalonResource {
     public ResponseEntity<Void> deleteSalon(@PathVariable("id") Long id) {
         LOG.debug("REST request to delete Salon : {}", id);
         salonService.delete(id);
+        realtimeEventService.broadcast("SALON_DELETED", java.util.Map.of("id", id));
         return ResponseEntity.noContent()
             .headers(HeaderUtil.createEntityDeletionAlert(applicationName, true, ENTITY_NAME, id.toString()))
             .build();

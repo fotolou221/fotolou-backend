@@ -1,7 +1,6 @@
 package com.fotolou.app.web.rest;
 
 import com.fotolou.app.domain.User;
-import com.fotolou.app.repository.UserRepository;
 import com.fotolou.app.security.SecurityUtils;
 import com.fotolou.app.service.MailService;
 import com.fotolou.app.service.UserService;
@@ -42,21 +41,13 @@ public class AccountResource {
 
     private static final Logger LOG = LoggerFactory.getLogger(AccountResource.class);
 
-    private final UserRepository userRepository;
-
     private final UserService userService;
 
     private final MailService mailService;
 
     private final PasswordEncoder passwordEncoder;
 
-    public AccountResource(
-        UserRepository userRepository,
-        UserService userService,
-        MailService mailService,
-        PasswordEncoder passwordEncoder
-    ) {
-        this.userRepository = userRepository;
+    public AccountResource(UserService userService, MailService mailService, PasswordEncoder passwordEncoder) {
         this.userService = userService;
         this.mailService = mailService;
         this.passwordEncoder = passwordEncoder;
@@ -124,11 +115,11 @@ public class AccountResource {
         String userLogin = SecurityUtils.getCurrentUserLogin().orElseThrow(() ->
             new AccountResourceException("Current user login not found")
         );
-        Optional<User> existingUser = userRepository.findOneByEmailIgnoreCase(userDTO.getEmail());
+        Optional<User> existingUser = userService.findOneByEmailIgnoreCase(userDTO.getEmail());
         if (existingUser.isPresent() && !existingUser.orElseThrow().getLogin().equalsIgnoreCase(userLogin)) {
             throw new EmailAlreadyUsedException();
         }
-        Optional<User> user = userRepository.findOneByLogin(userLogin);
+        Optional<User> user = userService.findOneByLogin(userLogin);
         if (!user.isPresent()) {
             throw new AccountResourceException("User could not be found");
         }

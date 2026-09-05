@@ -1,6 +1,5 @@
 package com.fotolou.app.web.rest;
 
-import com.fotolou.app.repository.CoiffeurProfileRepository;
 import com.fotolou.app.service.CoiffeurProfileQueryService;
 import com.fotolou.app.service.CoiffeurProfileService;
 import com.fotolou.app.service.criteria.CoiffeurProfileCriteria;
@@ -44,17 +43,10 @@ public class CoiffeurProfileResource {
 
     private final CoiffeurProfileService coiffeurProfileService;
 
-    private final CoiffeurProfileRepository coiffeurProfileRepository;
-
     private final CoiffeurProfileQueryService coiffeurProfileQueryService;
 
-    public CoiffeurProfileResource(
-        CoiffeurProfileService coiffeurProfileService,
-        CoiffeurProfileRepository coiffeurProfileRepository,
-        CoiffeurProfileQueryService coiffeurProfileQueryService
-    ) {
+    public CoiffeurProfileResource(CoiffeurProfileService coiffeurProfileService, CoiffeurProfileQueryService coiffeurProfileQueryService) {
         this.coiffeurProfileService = coiffeurProfileService;
-        this.coiffeurProfileRepository = coiffeurProfileRepository;
         this.coiffeurProfileQueryService = coiffeurProfileQueryService;
     }
 
@@ -101,7 +93,7 @@ public class CoiffeurProfileResource {
             throw new BadRequestAlertException("Invalid ID", ENTITY_NAME, "idinvalid");
         }
 
-        if (!coiffeurProfileRepository.existsById(id)) {
+        if (!coiffeurProfileService.existsById(id)) {
             throw new BadRequestAlertException("Entity not found", ENTITY_NAME, "idnotfound");
         }
 
@@ -135,7 +127,7 @@ public class CoiffeurProfileResource {
             throw new BadRequestAlertException("Invalid ID", ENTITY_NAME, "idinvalid");
         }
 
-        if (!coiffeurProfileRepository.existsById(id)) {
+        if (!coiffeurProfileService.existsById(id)) {
             throw new BadRequestAlertException("Entity not found", ENTITY_NAME, "idnotfound");
         }
 

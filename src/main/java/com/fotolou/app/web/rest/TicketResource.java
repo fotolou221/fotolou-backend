@@ -3,9 +3,6 @@ package com.fotolou.app.web.rest;
 import com.fotolou.app.domain.enumeration.TicketCategory;
 import com.fotolou.app.domain.enumeration.TicketOwnerType;
 import com.fotolou.app.domain.enumeration.TicketStatus;
-import com.fotolou.app.repository.TicketRepository;
-import com.fotolou.app.repository.UserRepository;
-import com.fotolou.app.security.SecurityUtils;
 import com.fotolou.app.service.TicketQueryService;
 import com.fotolou.app.service.TicketService;
 import com.fotolou.app.service.criteria.TicketCriteria;
@@ -50,18 +47,15 @@ public class TicketResource {
     private String applicationName;
 
     private final TicketService ticketService;
-    private final TicketRepository ticketRepository;
     private final TicketQueryService ticketQueryService;
-    private final UserRepository userRepository;
+    private final com.fotolou.app.repository.UserRepository userRepository;
 
     public TicketResource(
         TicketService ticketService,
-        TicketRepository ticketRepository,
         TicketQueryService ticketQueryService,
-        UserRepository userRepository
+        com.fotolou.app.repository.UserRepository userRepository
     ) {
         this.ticketService = ticketService;
-        this.ticketRepository = ticketRepository;
         this.ticketQueryService = ticketQueryService;
         this.userRepository = userRepository;
     }
@@ -78,31 +72,6 @@ public class TicketResource {
         LOG.debug("REST request to save Ticket : {}", ticketDTO);
         if (ticketDTO.getId() != null) {
             throw new BadRequestAlertException("A new ticket cannot already have an ID", ENTITY_NAME, "idexists");
-        }
-        if (ticketDTO.getTicketNumber() == null) {
-            ticketDTO.setTicketNumber((int) ticketRepository.count() + 1);
-        }
-        if (ticketDTO.getOwnerType() == null) {
-            ticketDTO.setOwnerType(TicketOwnerType.SELF);
-        }
-        if (ticketDTO.getStatus() == null) {
-            ticketDTO.setStatus(TicketStatus.WAITING);
-        }
-        if (ticketDTO.getCategory() == null) {
-            ticketDTO.setCategory(TicketCategory.ACTIVE);
-        }
-        if (ticketDTO.getCreatedDate() == null) {
-            ticketDTO.setCreatedDate(Instant.now());
-        }
-        if (ticketDTO.getUser() == null) {
-            SecurityUtils.getCurrentUserLogin()
-                .flatMap(userRepository::findOneByLogin)
-                .ifPresent(u -> {
-                    UserDTO userDTO = new UserDTO();
-                    userDTO.setId(u.getId());
-                    userDTO.setLogin(u.getLogin());
-                    ticketDTO.setUser(userDTO);
-                });
         }
         TicketDTO result = ticketService.save(ticketDTO);
         return ResponseEntity.created(new URI("/api/tickets/" + result.getId()))
@@ -133,7 +102,7 @@ public class TicketResource {
             throw new BadRequestAlertException("Invalid ID", ENTITY_NAME, "idinvalid");
         }
 
-        if (!ticketRepository.existsById(id)) {
+        if (!ticketService.existsById(id)) {
             throw new BadRequestAlertException("Entity not found", ENTITY_NAME, "idnotfound");
         }
 
@@ -167,7 +136,7 @@ public class TicketResource {
             throw new BadRequestAlertException("Invalid ID", ENTITY_NAME, "idinvalid");
         }
 
-        if (!ticketRepository.existsById(id)) {
+        if (!ticketService.existsById(id)) {
             throw new BadRequestAlertException("Entity not found", ENTITY_NAME, "idnotfound");
         }
 
@@ -193,6 +162,17 @@ public class TicketResource {
     ) {
         LOG.debug("REST request to get Tickets by criteria: {}", criteria);
 
+        if (!com.fotolou.app.security.SecurityUtils.hasCurrentUserThisAuthority(com.fotolou.app.security.AuthoritiesConstants.ADMIN)) {
+            String currentLogin = com.fotolou.app.security.SecurityUtils.getCurrentUserLogin().orElse(null);
+            if (currentLogin != null) {
+                userRepository.findOneByLogin(currentLogin).ifPresent(u -> {
+                    tech.jhipster.service.filter.LongFilter userFilter = new tech.jhipster.service.filter.LongFilter();
+                    userFilter.setEquals(u.getId());
+                    criteria.setUserId(userFilter);
+                });
+            }
+        }
+
         Page<TicketDTO> page = ticketQueryService.findByCriteria(criteria, pageable);
         HttpHeaders headers = PaginationUtil.generatePaginationHttpHeaders(ServletUriComponentsBuilder.fromCurrentRequest(), page);
         return ResponseEntity.ok().headers(headers).body(page.getContent());
@@ -207,6 +187,18 @@ public class TicketResource {
     @GetMapping("/count")
     public ResponseEntity<Long> countTickets(TicketCriteria criteria) {
         LOG.debug("REST request to count Tickets by criteria: {}", criteria);
+
+        if (!com.fotolou.app.security.SecurityUtils.hasCurrentUserThisAuthority(com.fotolou.app.security.AuthoritiesConstants.ADMIN)) {
+            String currentLogin = com.fotolou.app.security.SecurityUtils.getCurrentUserLogin().orElse(null);
+            if (currentLogin != null) {
+                userRepository.findOneByLogin(currentLogin).ifPresent(u -> {
+                    tech.jhipster.service.filter.LongFilter userFilter = new tech.jhipster.service.filter.LongFilter();
+                    userFilter.setEquals(u.getId());
+                    criteria.setUserId(userFilter);
+                });
+            }
+        }
+
         return ResponseEntity.ok().body(ticketQueryService.countByCriteria(criteria));
     }
 
