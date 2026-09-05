@@ -1,0 +1,6 @@
+target/
+.git/
+.env
+uploads/
+node_modules/
+*.log
