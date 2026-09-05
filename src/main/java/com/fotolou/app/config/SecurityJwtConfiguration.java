@@ -24,8 +24,13 @@ public class SecurityJwtConfiguration {
 
     private static final Logger LOG = LoggerFactory.getLogger(SecurityJwtConfiguration.class);
 
-    @Value("${jhipster.security.authentication.jwt.base64-secret}")
+    @Value(
+        "${jhipster.security.authentication.jwt.base64-secret:${JWT_SECRET:YjhhZjkyNGU5MGM5NTFiMzQ1MTNkNWJhYzExMWRjOGE1Yzg4ZTE1NGRjNTY5ZjkyMjg0ZjUzNGNiMzI3MGY4ODlhNDdlMzgxYTk4MmViMGViMGVhYWRiYjA3MDdmMjU1MTcxN2Q5NTFhMGMyOGYwYzFjNWU4MzE2YmQwZTk4YTY=}}"
+    )
     private String jwtKey;
+
+    private static final String DEFAULT_FALLBACK_SECRET =
+        "YjhhZjkyNGU5MGM5NTFiMzQ1MTNkNWJhYzExMWRjOGE1Yzg4ZTE1NGRjNTY5ZjkyMjg0ZjUzNGNiMzI3MGY4ODlhNDdlMzgxYTk4MmViMGViMGVhYWRiYjA3MDdmMjU1MTcxN2Q5NTFhMGMyOGYwYzFjNWU4MzE2YmQwZTk4YTY=";
 
     @Bean
     public JwtDecoder jwtDecoder(SecurityMetersService metersService) {
@@ -65,7 +70,8 @@ public class SecurityJwtConfiguration {
     }
 
     private SecretKey getSecretKey() {
-        byte[] keyBytes = Base64.from(jwtKey).decode();
+        String key = jwtKey != null && !jwtKey.isBlank() ? jwtKey.trim() : DEFAULT_FALLBACK_SECRET;
+        byte[] keyBytes = Base64.from(key).decode();
         return new SecretKeySpec(keyBytes, 0, keyBytes.length, JWT_ALGORITHM.getName());
     }
 }

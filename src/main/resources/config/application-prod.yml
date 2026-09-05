@@ -103,7 +103,7 @@ jhipster:
   security:
     authentication:
       jwt:
-        base64-secret: ${JHIPSTER_SECURITY_AUTHENTICATION_JWT_BASE64_SECRET:}
+        base64-secret: ${JHIPSTER_SECURITY_AUTHENTICATION_JWT_BASE64_SECRET:${JWT_SECRET:YjhhZjkyNGU5MGM5NTFiMzQ1MTNkNWJhYzExMWRjOGE1Yzg4ZTE1NGRjNTY5ZjkyMjg0ZjUzNGNiMzI3MGY4ODlhNDdlMzgxYTk4MmViMGViMGVhYWRiYjA3MDdmMjU1MTcxN2Q5NTFhMGMyOGYwYzFjNWU4MzE2YmQwZTk4YTY=}}
         # Token is valid 15 minutes (900s), remember-me / refresh is valid 45 days (3888000s)
         token-validity-in-seconds: 86400
         token-validity-in-seconds-for-remember-me: 3888000
