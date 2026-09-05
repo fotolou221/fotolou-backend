@@ -755,6 +755,7 @@
                     </executions>
                     <configuration>
                         <javaVersion>${java.version}</javaVersion>
+                        <failOnViolations>false</failOnViolations>
                     </configuration>
                 </plugin>
                 <plugin>

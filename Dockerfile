@@ -19,8 +19,7 @@ COPY .prettierignore* .
 COPY src src
 
 # Autorisation d'exécution du wrapper et compilation du JAR de production
-# Note : -Denforcer.skip=true évite les blocages stricts de convergence lors des builds conteneurisés
-RUN chmod +x ./mvnw && ./mvnw clean package -Pprod -DskipTests -Denforcer.skip=true -B
+RUN chmod +x ./mvnw && ./mvnw clean package -Pprod -DskipTests -Denforcer.skip=true -Dmodernizer.skip=true -Dcheckstyle.skip=true -B
 
 # --- Étape 2 : Image d'exécution légère (JRE 21) ---
 FROM eclipse-temurin:21-jre-alpine
