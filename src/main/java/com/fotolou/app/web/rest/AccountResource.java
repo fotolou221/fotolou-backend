@@ -18,6 +18,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -130,6 +131,58 @@ public class AccountResource {
             userDTO.getLangKey(),
             userDTO.getImageUrl()
         );
+    }
+
+    /**
+     * {@code PUT/POST  /account/profile} : update the current user's profile (name, image, etc.).
+     *
+     * @param profileDTO Map containing profile fields such as "name", "firstName", "lastName", "imageUrl".
+     * @return updated user info.
+     */
+    @RequestMapping(value = "/account/profile", method = { RequestMethod.PUT, RequestMethod.POST })
+    public ResponseEntity<?> updateProfile(@RequestBody Map<String, String> profileDTO) {
+        LOG.debug("REST request to update user profile: {}", profileDTO);
+        String userLogin = SecurityUtils.getCurrentUserLogin().orElseThrow(() ->
+            new AccountResourceException("Current user login not found")
+        );
+        User user = userService.findOneByLogin(userLogin).orElseThrow(() -> new AccountResourceException("User could not be found"));
+
+        String name = profileDTO.get("name");
+        String firstName = profileDTO.get("firstName");
+        String lastName = profileDTO.get("lastName");
+
+        if (name != null && !name.isBlank()) {
+            String[] parts = name.trim().split(" ", 2);
+            firstName = parts[0];
+            lastName = parts.length > 1 ? parts[1] : "";
+        }
+
+        if (firstName != null) {
+            user.setFirstName(firstName);
+        }
+        if (lastName != null) {
+            user.setLastName(lastName);
+        }
+        if (profileDTO.containsKey("imageUrl")) {
+            user.setImageUrl(profileDTO.get("imageUrl"));
+        }
+
+        userService.updateUser(user.getFirstName(), user.getLastName(), user.getEmail(), user.getLangKey(), user.getImageUrl());
+
+        String fullName = (
+            (user.getFirstName() != null ? user.getFirstName() : "") +
+            (user.getLastName() != null && !user.getLastName().isBlank() ? " " + user.getLastName() : "")
+        ).trim();
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("id", user.getId());
+        result.put("login", user.getLogin());
+        result.put("name", fullName.isEmpty() ? user.getLogin() : fullName);
+        result.put("firstName", user.getFirstName() != null ? user.getFirstName() : "");
+        result.put("lastName", user.getLastName() != null ? user.getLastName() : "");
+        result.put("imageUrl", user.getImageUrl());
+
+        return ResponseEntity.ok(result);
     }
 
     /**
