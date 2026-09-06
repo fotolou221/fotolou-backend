@@ -31,9 +31,13 @@ public interface QueueEngineService {
     List<TicketDTO> bookTickets(String salonIdOrSlug, String userLogin, List<BeneficiaryItem> beneficiaries);
 
     /**
-     * Ajout d'un client venu sur place (Walk-in) par le coiffeur.
+     * Ajout d'un client venu sur place (Walk-in) par le coiffeur avec option téléphone pour notification SMS.
      */
-    TicketDTO addWalkInClient(Long salonId, String clientName);
+    TicketDTO addWalkInClient(Long salonId, String clientName, String clientPhone);
+
+    default TicketDTO addWalkInClient(Long salonId, String clientName) {
+        return addWalkInClient(salonId, clientName, null);
+    }
 
     /**
      * Appel du client (C'est votre tour).

@@ -283,15 +283,45 @@ public class QueueEngineServiceImpl implements QueueEngineService {
     }
 
     @Override
-    public TicketDTO addWalkInClient(Long salonId, String clientName) {
+    public TicketDTO addWalkInClient(Long salonId, String clientName, String clientPhone) {
+        String finalName =
+            clientName != null && !clientName.isBlank()
+                ? clientName.trim()
+                : clientPhone != null && !clientPhone.isBlank()
+                  ? "Client (" + clientPhone.trim() + ")"
+                  : "Client direct";
+
         BeneficiaryItem walkIn = new BeneficiaryItem(
-            clientName != null && !clientName.isBlank() ? clientName : "Client direct",
+            finalName,
             "CUSTOM",
             null,
-            null
+            clientPhone != null && !clientPhone.isBlank() ? clientPhone.trim() : null
         );
         List<TicketDTO> list = bookTickets(salonId, (User) null, List.of(walkIn));
-        return list.get(0);
+        TicketDTO created = list.get(0);
+
+        if (clientPhone != null && !clientPhone.isBlank()) {
+            try {
+                Salon salon = salonRepository.findById(salonId).orElse(null);
+                String salonName = salon != null ? salon.getName() : "votre salon";
+                String msg = String.format(
+                    "Fotolou : Votre ticket #%d chez %s est validé ! %d personne(s) devant vous (~%d min). Suivez votre tour en direct.",
+                    created.getTicketNumber(),
+                    salonName,
+                    created.getPeopleAhead(),
+                    created.getEstimatedWaitMinutes()
+                );
+                smsService.sendSms(clientPhone.trim(), msg);
+            } catch (Exception e) {
+                LOG.warn("Impossible d'envoyer le SMS au client direct {}: {}", clientPhone, e.getMessage());
+            }
+        }
+        return created;
+    }
+
+    @Override
+    public TicketDTO addWalkInClient(Long salonId, String clientName) {
+        return addWalkInClient(salonId, clientName, null);
     }
 
     @Override

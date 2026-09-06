@@ -34,7 +34,7 @@ public class TicketCustomResource {
 
     public record BookMultipleTicketsRequestVM(Object salonId, String salonSlug, List<BeneficiaryItem> beneficiaries) {}
 
-    public record WalkInRequestVM(@NotNull Long salonId, String clientName) {}
+    public record WalkInRequestVM(@NotNull Long salonId, String clientName, String clientPhone) {}
 
     /**
      * POST /api/tickets/book-multiple : Prise groupée de tickets pour soi et/ou ses proches.
@@ -76,7 +76,7 @@ public class TicketCustomResource {
     @PostMapping("/tickets/walk-in")
     public ResponseEntity<?> addWalkInClient(@Valid @RequestBody WalkInRequestVM request) {
         try {
-            TicketDTO ticket = queueEngineService.addWalkInClient(request.salonId(), request.clientName());
+            TicketDTO ticket = queueEngineService.addWalkInClient(request.salonId(), request.clientName(), request.clientPhone());
             return ResponseEntity.status(HttpStatus.CREATED).body(ticket);
         } catch (Exception e) {
             LOG.error("Erreur ajout walk-in", e);

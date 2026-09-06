@@ -1,6 +1,8 @@
 package com.fotolou.app.web.rest;
 
+import com.fotolou.app.security.SecurityUtils;
 import com.fotolou.app.service.RelativeService;
+import com.fotolou.app.service.custom.sms.SmsService;
 import com.fotolou.app.service.dto.RelativeDTO;
 import com.fotolou.app.service.dto.UserDTO;
 import com.fotolou.app.web.rest.errors.BadRequestAlertException;
@@ -41,9 +43,11 @@ public class RelativeResource {
     private String applicationName;
 
     private final RelativeService relativeService;
+    private final SmsService smsService;
 
-    public RelativeResource(RelativeService relativeService) {
+    public RelativeResource(RelativeService relativeService, SmsService smsService) {
         this.relativeService = relativeService;
+        this.smsService = smsService;
     }
 
     /**
@@ -60,6 +64,23 @@ public class RelativeResource {
             throw new BadRequestAlertException("A new relative cannot already have an ID", ENTITY_NAME, "idexists");
         }
         RelativeDTO result = relativeService.save(relativeDTO);
+
+        // Si un numéro est renseigné, envoyer une notification SMS au proche
+        if (result.getPhone() != null && !result.getPhone().isBlank()) {
+            try {
+                String sender = SecurityUtils.getCurrentUserLogin().orElse("Votre proche");
+                String name = result.getName() != null && !result.getName().isBlank() ? result.getName() : "bonjour";
+                String msg = String.format(
+                    "Fotolou : Bonjour %s, vous avez ete ajoute(e) comme proche sur Fotolou par %s. Vos alertes de tickets vous seront transmises sur ce numero.",
+                    name,
+                    sender
+                );
+                smsService.sendSms(result.getPhone().trim(), msg);
+            } catch (Exception e) {
+                LOG.warn("Impossible d'envoyer le SMS au proche {}: {}", result.getPhone(), e.getMessage());
+            }
+        }
+
         return ResponseEntity.created(new URI("/api/relatives/" + result.getId()))
             .headers(HeaderUtil.createEntityCreationAlert(applicationName, true, ENTITY_NAME, result.getId().toString()))
             .body(result);
