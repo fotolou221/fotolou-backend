@@ -63,4 +63,39 @@ public interface RelativeService {
      * @return true if exists.
      */
     boolean existsById(Long id);
+
+    /**
+     * Save a relative for a specific user.
+     */
+    RelativeDTO saveForUser(RelativeDTO relativeDTO, String login);
+
+    /**
+     * Update a relative owned by a specific user.
+     */
+    RelativeDTO updateForUser(RelativeDTO relativeDTO, String login);
+
+    /**
+     * Partially update a relative owned by a specific user.
+     */
+    Optional<RelativeDTO> partialUpdateForUser(RelativeDTO relativeDTO, String login);
+
+    /**
+     * Get all the relatives for a specific user.
+     */
+    Page<RelativeDTO> findAllForUser(String login, Pageable pageable);
+
+    /**
+     * Get one relative by id for a specific user.
+     */
+    Optional<RelativeDTO> findOneForUser(Long id, String login);
+
+    /**
+     * Delete the relative by id for a specific user.
+     */
+    void deleteForUser(Long id, String login);
+
+    /**
+     * Check if a relative exists by id and belongs to a specific user.
+     */
+    boolean existsByIdAndUser(Long id, String login);
 }

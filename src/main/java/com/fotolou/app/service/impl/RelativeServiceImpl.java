@@ -1,11 +1,15 @@
 package com.fotolou.app.service.impl;
 
 import com.fotolou.app.domain.Relative;
+import com.fotolou.app.domain.User;
 import com.fotolou.app.repository.RelativeRepository;
+import com.fotolou.app.repository.UserRepository;
 import com.fotolou.app.service.RelativeService;
 import com.fotolou.app.service.UserService;
 import com.fotolou.app.service.dto.RelativeDTO;
 import com.fotolou.app.service.mapper.RelativeMapper;
+import com.fotolou.app.web.rest.errors.BadRequestAlertException;
+import java.time.Instant;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,11 +30,18 @@ public class RelativeServiceImpl implements RelativeService {
     private final RelativeRepository relativeRepository;
     private final RelativeMapper relativeMapper;
     private final UserService userService;
+    private final UserRepository userRepository;
 
-    public RelativeServiceImpl(RelativeRepository relativeRepository, RelativeMapper relativeMapper, UserService userService) {
+    public RelativeServiceImpl(
+        RelativeRepository relativeRepository,
+        RelativeMapper relativeMapper,
+        UserService userService,
+        UserRepository userRepository
+    ) {
         this.relativeRepository = relativeRepository;
         this.relativeMapper = relativeMapper;
         this.userService = userService;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -38,7 +49,7 @@ public class RelativeServiceImpl implements RelativeService {
         LOG.debug("Request to save Relative : {}", relativeDTO);
         if (relativeDTO.getUser() == null) {
             com.fotolou.app.security.SecurityUtils.getCurrentUserLogin()
-                .flatMap(userService::findOneByLogin)
+                .flatMap(userRepository::findOneByLogin)
                 .ifPresent(u -> {
                     com.fotolou.app.service.dto.UserDTO userDTO = new com.fotolou.app.service.dto.UserDTO();
                     userDTO.setId(u.getId());
@@ -47,6 +58,25 @@ public class RelativeServiceImpl implements RelativeService {
                 });
         }
         Relative relative = relativeMapper.toEntity(relativeDTO);
+        if (relative.getCreatedDate() == null) {
+            relative.setCreatedDate(Instant.now());
+        }
+        relative = relativeRepository.save(relative);
+        return relativeMapper.toDto(relative);
+    }
+
+    @Override
+    public RelativeDTO saveForUser(RelativeDTO relativeDTO, String login) {
+        LOG.debug("Request to save Relative for user {} : {}", login, relativeDTO);
+        User user = userRepository
+            .findOneByLogin(login)
+            .orElseThrow(() -> new BadRequestAlertException("Utilisateur introuvable", "relative", "usernotfound"));
+
+        Relative relative = relativeMapper.toEntity(relativeDTO);
+        relative.setUser(user);
+        if (relative.getCreatedDate() == null) {
+            relative.setCreatedDate(Instant.now());
+        }
         relative = relativeRepository.save(relative);
         return relativeMapper.toDto(relative);
     }
@@ -57,6 +87,20 @@ public class RelativeServiceImpl implements RelativeService {
         Relative relative = relativeMapper.toEntity(relativeDTO);
         relative = relativeRepository.save(relative);
         return relativeMapper.toDto(relative);
+    }
+
+    @Override
+    public RelativeDTO updateForUser(RelativeDTO relativeDTO, String login) {
+        LOG.debug("Request to update Relative for user {} : {}", login, relativeDTO);
+        Relative existing = relativeRepository
+            .findByIdAndUserLogin(relativeDTO.getId(), login)
+            .orElseThrow(() -> new BadRequestAlertException("Ce proche est introuvable ou ne vous appartient pas", "relative", "notowned"));
+
+        existing.setName(relativeDTO.getName());
+        existing.setRelation(relativeDTO.getRelation());
+        existing.setPhone(relativeDTO.getPhone());
+        existing = relativeRepository.save(existing);
+        return relativeMapper.toDto(existing);
     }
 
     @Override
@@ -74,10 +118,37 @@ public class RelativeServiceImpl implements RelativeService {
     }
 
     @Override
+    public Optional<RelativeDTO> partialUpdateForUser(RelativeDTO relativeDTO, String login) {
+        LOG.debug("Request to partially update Relative for user {} : {}", login, relativeDTO);
+        return relativeRepository
+            .findByIdAndUserLogin(relativeDTO.getId(), login)
+            .map(existing -> {
+                if (relativeDTO.getName() != null) {
+                    existing.setName(relativeDTO.getName());
+                }
+                if (relativeDTO.getRelation() != null) {
+                    existing.setRelation(relativeDTO.getRelation());
+                }
+                if (relativeDTO.getPhone() != null) {
+                    existing.setPhone(relativeDTO.getPhone());
+                }
+                return relativeRepository.save(existing);
+            })
+            .map(relativeMapper::toDto);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public Page<RelativeDTO> findAll(Pageable pageable) {
         LOG.debug("Request to get all Relatives");
         return relativeRepository.findAll(pageable).map(relativeMapper::toDto);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<RelativeDTO> findAllForUser(String login, Pageable pageable) {
+        LOG.debug("Request to get all Relatives for user : {}", login);
+        return relativeRepository.findByUserLogin(login, pageable).map(relativeMapper::toDto);
     }
 
     @Override
@@ -88,14 +159,36 @@ public class RelativeServiceImpl implements RelativeService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Optional<RelativeDTO> findOneForUser(Long id, String login) {
+        LOG.debug("Request to get Relative {} for user : {}", id, login);
+        return relativeRepository.findByIdAndUserLogin(id, login).map(relativeMapper::toDto);
+    }
+
+    @Override
     public void delete(Long id) {
         LOG.debug("Request to delete Relative : {}", id);
         relativeRepository.deleteById(id);
     }
 
     @Override
+    public void deleteForUser(Long id, String login) {
+        LOG.debug("Request to delete Relative {} for user : {}", id, login);
+        Relative relative = relativeRepository
+            .findByIdAndUserLogin(id, login)
+            .orElseThrow(() -> new BadRequestAlertException("Ce proche est introuvable ou ne vous appartient pas", "relative", "notowned"));
+        relativeRepository.delete(relative);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public boolean existsById(Long id) {
         return relativeRepository.existsById(id);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existsByIdAndUser(Long id, String login) {
+        return relativeRepository.existsByIdAndUserLogin(id, login);
     }
 }

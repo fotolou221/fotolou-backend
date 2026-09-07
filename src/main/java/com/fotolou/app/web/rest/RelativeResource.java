@@ -1,5 +1,6 @@
 package com.fotolou.app.web.rest;
 
+import com.fotolou.app.security.AuthoritiesConstants;
 import com.fotolou.app.security.SecurityUtils;
 import com.fotolou.app.service.RelativeService;
 import com.fotolou.app.service.custom.sms.SmsService;
@@ -11,6 +12,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -51,7 +53,7 @@ public class RelativeResource {
     }
 
     /**
-     * {@code POST  /relatives} : Create a new relative.
+     * {@code POST  /relatives} : Create a new relative for the authenticated user.
      *
      * @param relativeDTO the relativeDTO to create.
      * @return the {@link ResponseEntity} with status {@code 201 (Created)} and with body the new relativeDTO, or with status {@code 400 (Bad Request)} if the relative has already an ID.
@@ -63,12 +65,18 @@ public class RelativeResource {
         if (relativeDTO.getId() != null) {
             throw new BadRequestAlertException("A new relative cannot already have an ID", ENTITY_NAME, "idexists");
         }
-        RelativeDTO result = relativeService.save(relativeDTO);
+
+        String currentLogin = SecurityUtils.getCurrentUserLogin().orElse(null);
+        if (currentLogin == null) {
+            throw new BadRequestAlertException("Vous devez être connecté pour ajouter un proche", ENTITY_NAME, "unauthorized");
+        }
+
+        RelativeDTO result = relativeService.saveForUser(relativeDTO, currentLogin);
 
         // Si un numéro est renseigné, envoyer une notification SMS au proche
         if (result.getPhone() != null && !result.getPhone().isBlank()) {
             try {
-                String sender = SecurityUtils.getCurrentUserLogin().orElse("Votre proche");
+                String sender = currentLogin;
                 String name = result.getName() != null && !result.getName().isBlank() ? result.getName() : "bonjour";
                 String msg = String.format(
                     "Fotolou : Bonjour %s, vous avez ete ajoute(e) comme proche sur Fotolou par %s. Vos alertes de tickets vous seront transmises sur ce numero.",
@@ -109,11 +117,26 @@ public class RelativeResource {
             throw new BadRequestAlertException("Invalid ID", ENTITY_NAME, "idinvalid");
         }
 
-        if (!relativeService.existsById(id)) {
-            throw new BadRequestAlertException("Entity not found", ENTITY_NAME, "idnotfound");
+        if (SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN)) {
+            if (!relativeService.existsById(id)) {
+                throw new BadRequestAlertException("Entity not found", ENTITY_NAME, "idnotfound");
+            }
+            relativeDTO = relativeService.update(relativeDTO);
+            return ResponseEntity.ok()
+                .headers(HeaderUtil.createEntityUpdateAlert(applicationName, true, ENTITY_NAME, relativeDTO.getId().toString()))
+                .body(relativeDTO);
         }
 
-        relativeDTO = relativeService.update(relativeDTO);
+        String currentLogin = SecurityUtils.getCurrentUserLogin().orElse(null);
+        if (currentLogin == null) {
+            throw new BadRequestAlertException("Non autorisé", ENTITY_NAME, "unauthorized");
+        }
+
+        if (!relativeService.existsByIdAndUser(id, currentLogin)) {
+            throw new BadRequestAlertException("Ce proche est introuvable ou ne vous appartient pas", ENTITY_NAME, "notowned");
+        }
+
+        relativeDTO = relativeService.updateForUser(relativeDTO, currentLogin);
         return ResponseEntity.ok()
             .headers(HeaderUtil.createEntityUpdateAlert(applicationName, true, ENTITY_NAME, relativeDTO.getId().toString()))
             .body(relativeDTO);
@@ -143,12 +166,27 @@ public class RelativeResource {
             throw new BadRequestAlertException("Invalid ID", ENTITY_NAME, "idinvalid");
         }
 
-        if (!relativeService.existsById(id)) {
-            throw new BadRequestAlertException("Entity not found", ENTITY_NAME, "idnotfound");
+        if (SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN)) {
+            if (!relativeService.existsById(id)) {
+                throw new BadRequestAlertException("Entity not found", ENTITY_NAME, "idnotfound");
+            }
+            Optional<RelativeDTO> result = relativeService.partialUpdate(relativeDTO);
+            return ResponseUtil.wrapOrNotFound(
+                result,
+                HeaderUtil.createEntityUpdateAlert(applicationName, true, ENTITY_NAME, relativeDTO.getId().toString())
+            );
         }
 
-        Optional<RelativeDTO> result = relativeService.partialUpdate(relativeDTO);
+        String currentLogin = SecurityUtils.getCurrentUserLogin().orElse(null);
+        if (currentLogin == null) {
+            throw new BadRequestAlertException("Non autorisé", ENTITY_NAME, "unauthorized");
+        }
 
+        if (!relativeService.existsByIdAndUser(id, currentLogin)) {
+            throw new BadRequestAlertException("Ce proche est introuvable ou ne vous appartient pas", ENTITY_NAME, "notowned");
+        }
+
+        Optional<RelativeDTO> result = relativeService.partialUpdateForUser(relativeDTO, currentLogin);
         return ResponseUtil.wrapOrNotFound(
             result,
             HeaderUtil.createEntityUpdateAlert(applicationName, true, ENTITY_NAME, relativeDTO.getId().toString())
@@ -156,7 +194,7 @@ public class RelativeResource {
     }
 
     /**
-     * {@code GET  /relatives} : get all the Relatives.
+     * {@code GET  /relatives} : get all the Relatives for the current user (or all if admin).
      *
      * @param pageable the pagination information.
      * @return the {@link ResponseEntity} with status {@code 200 (OK)} and the list of Relatives in body.
@@ -164,13 +202,27 @@ public class RelativeResource {
     @GetMapping("")
     public ResponseEntity<List<RelativeDTO>> getAllRelatives(@org.springdoc.core.annotations.ParameterObject Pageable pageable) {
         LOG.debug("REST request to get a page of Relatives");
-        Page<RelativeDTO> page = relativeService.findAll(pageable);
+
+        // Admins can see all relatives
+        if (SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN)) {
+            Page<RelativeDTO> page = relativeService.findAll(pageable);
+            HttpHeaders headers = PaginationUtil.generatePaginationHttpHeaders(ServletUriComponentsBuilder.fromCurrentRequest(), page);
+            return ResponseEntity.ok().headers(headers).body(page.getContent());
+        }
+
+        // Regular users (clients) strictly see ONLY their own relatives
+        String currentLogin = SecurityUtils.getCurrentUserLogin().orElse(null);
+        if (currentLogin == null) {
+            return ResponseEntity.ok().body(Collections.emptyList());
+        }
+
+        Page<RelativeDTO> page = relativeService.findAllForUser(currentLogin, pageable);
         HttpHeaders headers = PaginationUtil.generatePaginationHttpHeaders(ServletUriComponentsBuilder.fromCurrentRequest(), page);
         return ResponseEntity.ok().headers(headers).body(page.getContent());
     }
 
     /**
-     * {@code GET  /relatives/:id} : get the "id" relative.
+     * {@code GET  /relatives/:id} : get the "id" relative for the current user (or if admin).
      *
      * @param id the id of the relativeDTO to retrieve.
      * @return the {@link ResponseEntity} with status {@code 200 (OK)} and with body the relativeDTO, or with status {@code 404 (Not Found)}.
@@ -178,12 +230,23 @@ public class RelativeResource {
     @GetMapping("/{id}")
     public ResponseEntity<RelativeDTO> getRelative(@PathVariable("id") Long id) {
         LOG.debug("REST request to get Relative : {}", id);
-        Optional<RelativeDTO> relativeDTO = relativeService.findOne(id);
+
+        if (SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN)) {
+            Optional<RelativeDTO> relativeDTO = relativeService.findOne(id);
+            return ResponseUtil.wrapOrNotFound(relativeDTO);
+        }
+
+        String currentLogin = SecurityUtils.getCurrentUserLogin().orElse(null);
+        if (currentLogin == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Optional<RelativeDTO> relativeDTO = relativeService.findOneForUser(id, currentLogin);
         return ResponseUtil.wrapOrNotFound(relativeDTO);
     }
 
     /**
-     * {@code DELETE  /relatives/:id} : delete the "id" relative.
+     * {@code DELETE  /relatives/:id} : delete the "id" relative for current user.
      *
      * @param id the id of the relativeDTO to delete.
      * @return the {@link ResponseEntity} with status {@code 204 (NO_CONTENT)}.
@@ -191,7 +254,24 @@ public class RelativeResource {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteRelative(@PathVariable("id") Long id) {
         LOG.debug("REST request to delete Relative : {}", id);
-        relativeService.delete(id);
+
+        if (SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN)) {
+            relativeService.delete(id);
+            return ResponseEntity.noContent()
+                .headers(HeaderUtil.createEntityDeletionAlert(applicationName, true, ENTITY_NAME, id.toString()))
+                .build();
+        }
+
+        String currentLogin = SecurityUtils.getCurrentUserLogin().orElse(null);
+        if (currentLogin == null) {
+            throw new BadRequestAlertException("Non autorisé", ENTITY_NAME, "unauthorized");
+        }
+
+        if (!relativeService.existsByIdAndUser(id, currentLogin)) {
+            throw new BadRequestAlertException("Ce proche est introuvable ou ne vous appartient pas", ENTITY_NAME, "notowned");
+        }
+
+        relativeService.deleteForUser(id, currentLogin);
         return ResponseEntity.noContent()
             .headers(HeaderUtil.createEntityDeletionAlert(applicationName, true, ENTITY_NAME, id.toString()))
             .build();
