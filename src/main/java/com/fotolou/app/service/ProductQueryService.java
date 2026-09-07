@@ -29,12 +29,17 @@ public class ProductQueryService extends QueryService<Product> {
     private static final Logger LOG = LoggerFactory.getLogger(ProductQueryService.class);
 
     private final ProductRepository productRepository;
-
     private final ProductMapper productMapper;
+    private final com.fotolou.app.repository.ProductImageRepository productImageRepository;
 
-    public ProductQueryService(ProductRepository productRepository, ProductMapper productMapper) {
+    public ProductQueryService(
+        ProductRepository productRepository,
+        ProductMapper productMapper,
+        com.fotolou.app.repository.ProductImageRepository productImageRepository
+    ) {
         this.productRepository = productRepository;
         this.productMapper = productMapper;
+        this.productImageRepository = productImageRepository;
     }
 
     /**
@@ -47,7 +52,16 @@ public class ProductQueryService extends QueryService<Product> {
     public Page<ProductDTO> findByCriteria(ProductCriteria criteria, Pageable page) {
         LOG.debug("find by criteria : {}, page: {}", criteria, page);
         final Specification<Product> specification = createSpecification(criteria);
-        return productRepository.findAll(specification, page).map(productMapper::toDto);
+        return productRepository.findAll(specification, page).map(product -> {
+            ProductDTO dto = productMapper.toDto(product);
+            java.util.List<String> images = productImageRepository
+                .findByProductIdOrderBySortOrderAsc(product.getId())
+                .stream()
+                .map(com.fotolou.app.domain.ProductImage::getImageUrl)
+                .toList();
+            dto.setImages(images);
+            return dto;
+        });
     }
 
     /**

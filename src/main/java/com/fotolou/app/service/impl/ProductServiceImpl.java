@@ -1,10 +1,13 @@
 package com.fotolou.app.service.impl;
 
 import com.fotolou.app.domain.Product;
+import com.fotolou.app.domain.ProductImage;
+import com.fotolou.app.repository.ProductImageRepository;
 import com.fotolou.app.repository.ProductRepository;
 import com.fotolou.app.service.ProductService;
 import com.fotolou.app.service.dto.ProductDTO;
 import com.fotolou.app.service.mapper.ProductMapper;
+import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,10 +27,42 @@ public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository productRepository;
     private final ProductMapper productMapper;
+    private final ProductImageRepository productImageRepository;
 
-    public ProductServiceImpl(ProductRepository productRepository, ProductMapper productMapper) {
+    public ProductServiceImpl(
+        ProductRepository productRepository,
+        ProductMapper productMapper,
+        ProductImageRepository productImageRepository
+    ) {
         this.productRepository = productRepository;
         this.productMapper = productMapper;
+        this.productImageRepository = productImageRepository;
+    }
+
+    private void saveProductImages(Product product, List<String> images) {
+        if (images != null && !images.isEmpty()) {
+            for (int i = 0; i < images.size(); i++) {
+                String url = images.get(i);
+                if (url != null && !url.isBlank()) {
+                    ProductImage img = new ProductImage();
+                    img.setImageUrl(url);
+                    img.setSortOrder(i);
+                    img.setProduct(product);
+                    productImageRepository.save(img);
+                }
+            }
+        }
+    }
+
+    private void attachImages(ProductDTO dto, Long productId) {
+        if (dto != null && productId != null) {
+            List<String> images = productImageRepository
+                .findByProductIdOrderBySortOrderAsc(productId)
+                .stream()
+                .map(ProductImage::getImageUrl)
+                .toList();
+            dto.setImages(images);
+        }
     }
 
     @Override
@@ -35,7 +70,10 @@ public class ProductServiceImpl implements ProductService {
         LOG.debug("Request to save Product : {}", productDTO);
         Product product = productMapper.toEntity(productDTO);
         product = productRepository.save(product);
-        return productMapper.toDto(product);
+        saveProductImages(product, productDTO.getImages());
+        ProductDTO result = productMapper.toDto(product);
+        attachImages(result, product.getId());
+        return result;
     }
 
     @Override
@@ -43,7 +81,13 @@ public class ProductServiceImpl implements ProductService {
         LOG.debug("Request to update Product : {}", productDTO);
         Product product = productMapper.toEntity(productDTO);
         product = productRepository.save(product);
-        return productMapper.toDto(product);
+        if (productDTO.getImages() != null) {
+            productImageRepository.deleteByProductId(product.getId());
+            saveProductImages(product, productDTO.getImages());
+        }
+        ProductDTO result = productMapper.toDto(product);
+        attachImages(result, product.getId());
+        return result;
     }
 
     @Override
@@ -57,24 +101,41 @@ public class ProductServiceImpl implements ProductService {
                 return existingProduct;
             })
             .map(productRepository::save)
-            .map(productMapper::toDto);
+            .map(product -> {
+                if (productDTO.getImages() != null) {
+                    productImageRepository.deleteByProductId(product.getId());
+                    saveProductImages(product, productDTO.getImages());
+                }
+                ProductDTO result = productMapper.toDto(product);
+                attachImages(result, product.getId());
+                return result;
+            });
     }
 
     @Override
     public Page<ProductDTO> findAllWithEagerRelationships(Pageable pageable) {
-        return productRepository.findAllWithEagerRelationships(pageable).map(productMapper::toDto);
+        return productRepository.findAllWithEagerRelationships(pageable).map(product -> {
+            ProductDTO dto = productMapper.toDto(product);
+            attachImages(dto, product.getId());
+            return dto;
+        });
     }
 
     @Override
     @Transactional(readOnly = true)
     public Optional<ProductDTO> findOne(Long id) {
         LOG.debug("Request to get Product : {}", id);
-        return productRepository.findOneWithEagerRelationships(id).map(productMapper::toDto);
+        return productRepository.findOneWithEagerRelationships(id).map(product -> {
+            ProductDTO dto = productMapper.toDto(product);
+            attachImages(dto, product.getId());
+            return dto;
+        });
     }
 
     @Override
     public void delete(Long id) {
         LOG.debug("Request to delete Product : {}", id);
+        productImageRepository.deleteByProductId(id);
         productRepository.deleteById(id);
     }
 

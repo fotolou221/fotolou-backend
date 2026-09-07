@@ -5,6 +5,7 @@ import jakarta.persistence.Lob;
 import jakarta.validation.constraints.*;
 import java.io.Serializable;
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -44,6 +45,8 @@ public class ProductDTO implements Serializable {
     private Instant createdDate;
 
     private Instant lastModifiedDate;
+
+    private List<String> images;
 
     @NotNull
     private ProductCategoryDTO category;
@@ -134,6 +137,14 @@ public class ProductDTO implements Serializable {
 
     public void setCategory(ProductCategoryDTO category) {
         this.category = category;
+    }
+
+    public List<String> getImages() {
+        return images;
+    }
+
+    public void setImages(List<String> images) {
+        this.images = images;
     }
 
     @Override

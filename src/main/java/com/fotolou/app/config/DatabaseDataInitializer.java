@@ -26,17 +26,20 @@ public class DatabaseDataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final AuthorityRepository authorityRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ProductCategoryRepository productCategoryRepository;
 
     public DatabaseDataInitializer(
         PlatformSettingsRepository platformSettingsRepository,
         UserRepository userRepository,
         AuthorityRepository authorityRepository,
-        PasswordEncoder passwordEncoder
+        PasswordEncoder passwordEncoder,
+        ProductCategoryRepository productCategoryRepository
     ) {
         this.platformSettingsRepository = platformSettingsRepository;
         this.userRepository = userRepository;
         this.authorityRepository = authorityRepository;
         this.passwordEncoder = passwordEncoder;
+        this.productCategoryRepository = productCategoryRepository;
     }
 
     @Override
@@ -45,6 +48,7 @@ public class DatabaseDataInitializer implements CommandLineRunner {
         initAuthorities();
         initAdminUser();
         initPlatformSettings();
+        initDefaultCategories();
         LOG.info("🚀 Fotolou initialisé en mode propre (Prêt pour la production).");
     }
 
@@ -99,6 +103,36 @@ public class DatabaseDataInitializer implements CommandLineRunner {
             settings.setMaintenanceMode(false);
             platformSettingsRepository.save(settings);
             LOG.info("⚙️ Paramètres initiaux de la plateforme Fotolou configurés.");
+        }
+    }
+
+    private void initDefaultCategories() {
+        if (productCategoryRepository.count() == 0) {
+            ProductCategory cat1 = new ProductCategory();
+            cat1.setName("Tondeuses & Matériel");
+            cat1.setSlug("tondeuses");
+            cat1.setDescription("Tondeuses de coupe, de finition et rasoirs professionnels");
+            cat1.setImage("https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=400&q=80");
+            cat1.setIcon("scissors");
+            productCategoryRepository.save(cat1);
+
+            ProductCategory cat2 = new ProductCategory();
+            cat2.setName("Soins & Huiles Barbe");
+            cat2.setSlug("soins-barbe");
+            cat2.setDescription("Huiles nourrissantes, baumes et shampoings pour barbe");
+            cat2.setImage("https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=400&q=80");
+            cat2.setIcon("droplet");
+            productCategoryRepository.save(cat2);
+
+            ProductCategory cat3 = new ProductCategory();
+            cat3.setName("Cires & Coiffants");
+            cat3.setSlug("cires-coiffants");
+            cat3.setDescription("Pommades, gels fixation forte et poudres texturisantes");
+            cat3.setImage("https://images.unsplash.com/photo-1597354984706-fac992d9306f?auto=format&fit=crop&w=400&q=80");
+            cat3.setIcon("sparkles");
+            productCategoryRepository.save(cat3);
+
+            LOG.info("🛍️ Catégories de boutique initiales créées avec succès.");
         }
     }
 }

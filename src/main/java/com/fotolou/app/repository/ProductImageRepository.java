@@ -37,4 +37,8 @@ public interface ProductImageRepository extends JpaRepository<ProductImage, Long
 
     @Query("select productImage from ProductImage productImage left join fetch productImage.product where productImage.id =:id")
     Optional<ProductImage> findOneWithToOneRelationships(@Param("id") Long id);
+
+    List<ProductImage> findByProductIdOrderBySortOrderAsc(Long productId);
+
+    void deleteByProductId(Long productId);
 }
