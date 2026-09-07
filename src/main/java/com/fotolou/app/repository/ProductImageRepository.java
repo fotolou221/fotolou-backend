@@ -8,6 +8,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Spring Data JPA repository for the ProductImage entity.
@@ -40,5 +41,7 @@ public interface ProductImageRepository extends JpaRepository<ProductImage, Long
 
     List<ProductImage> findByProductIdOrderBySortOrderAsc(Long productId);
 
+    @Modifying
+    @Transactional
     void deleteByProductId(Long productId);
 }
