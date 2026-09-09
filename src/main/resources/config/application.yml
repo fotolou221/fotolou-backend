@@ -248,3 +248,7 @@ application:
   business:
     delivery-fee: ${DELIVERY_FEE:2000}
     whatsapp-number: ${WHATSAPP_NUMBER:221778627052}
+  push:
+    vapid-public-key: ${VAPID_PUBLIC_KEY:}
+    vapid-private-key: ${VAPID_PRIVATE_KEY:}
+    subject: ${VAPID_SUBJECT:mailto:support@fotolou.sn}

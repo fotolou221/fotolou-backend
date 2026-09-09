@@ -21,6 +21,9 @@ public class TicketDTO implements Serializable {
     @Min(value = 1)
     private Integer ticketNumber;
 
+    @Min(value = 1)
+    private Integer currentTicketNumber;
+
     @NotNull
     @Size(max = 100)
     private String ownerName;
@@ -67,6 +70,14 @@ public class TicketDTO implements Serializable {
 
     public void setTicketNumber(Integer ticketNumber) {
         this.ticketNumber = ticketNumber;
+    }
+
+    public Integer getCurrentTicketNumber() {
+        return currentTicketNumber;
+    }
+
+    public void setCurrentTicketNumber(Integer currentTicketNumber) {
+        this.currentTicketNumber = currentTicketNumber;
     }
 
     public String getOwnerName() {
@@ -200,6 +211,7 @@ public class TicketDTO implements Serializable {
         return "TicketDTO{" +
             "id=" + getId() +
             ", ticketNumber=" + getTicketNumber() +
+            ", currentTicketNumber=" + getCurrentTicketNumber() +
             ", ownerName='" + getOwnerName() + "'" +
             ", ownerType='" + getOwnerType() + "'" +
             ", status='" + getStatus() + "'" +

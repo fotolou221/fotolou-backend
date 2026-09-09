@@ -16,6 +16,7 @@ public class ApplicationProperties {
     private final Storage storage = new Storage();
     private final Otp otp = new Otp();
     private final Business business = new Business();
+    private final Push push = new Push();
 
     public Liquibase getLiquibase() {
         return liquibase;
@@ -35,6 +36,10 @@ public class ApplicationProperties {
 
     public Business getBusiness() {
         return business;
+    }
+
+    public Push getPush() {
+        return push;
     }
 
     public static class Liquibase {
@@ -247,6 +252,37 @@ public class ApplicationProperties {
 
         public void setDeliveryFee(long deliveryFee) {
             this.deliveryFee = deliveryFee;
+        }
+    }
+
+    public static class Push {
+
+        private String vapidPublicKey;
+        private String vapidPrivateKey;
+        private String subject = "mailto:support@fotolou.sn";
+
+        public String getVapidPublicKey() {
+            return vapidPublicKey;
+        }
+
+        public void setVapidPublicKey(String vapidPublicKey) {
+            this.vapidPublicKey = vapidPublicKey;
+        }
+
+        public String getVapidPrivateKey() {
+            return vapidPrivateKey;
+        }
+
+        public void setVapidPrivateKey(String vapidPrivateKey) {
+            this.vapidPrivateKey = vapidPrivateKey;
+        }
+
+        public String getSubject() {
+            return subject;
+        }
+
+        public void setSubject(String subject) {
+            this.subject = subject;
         }
     }
 }

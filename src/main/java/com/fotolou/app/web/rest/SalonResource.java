@@ -95,11 +95,30 @@ public class SalonResource {
         if (salonDTO.getId() != null) {
             throw new BadRequestAlertException("A new salon cannot already have an ID", ENTITY_NAME, "idexists");
         }
+
+        String normalizedPhone = normalizePhoneForAccount(salonDTO.getPhone());
+        if (!normalizedPhone.isBlank()) {
+            if (phoneAlreadyUsed(normalizedPhone)) {
+                throw new BadRequestAlertException(
+                    "Ce numéro de téléphone est déjà utilisé par un autre utilisateur.",
+                    ENTITY_NAME,
+                    "phonealreadyused"
+                );
+            }
+            salonDTO.setPhone(normalizedPhone);
+        }
+
+        final String ownerDisplayName = normalizeOwnerName(salonDTO.getOwnerName(), salonDTO.getCoiffeurName());
+        if (!ownerDisplayName.isBlank()) {
+            salonDTO.setOwnerName(ownerDisplayName);
+            salonDTO.setCoiffeurName(ownerDisplayName);
+        }
+
         salonDTO = salonService.save(salonDTO);
 
         // Auto-provision ou association du compte Coiffeur Propriétaire avec ROLE_COIFFEUR
         if (salonDTO.getPhone() != null && !salonDTO.getPhone().isBlank()) {
-            final String cleanPhone = salonDTO.getPhone().trim().replace(" ", "");
+            final String cleanPhone = normalizePhoneForAccount(salonDTO.getPhone());
             final String salonName = salonDTO.getName();
             com.fotolou.app.domain.Salon salonEntity = salonRepository.findById(salonDTO.getId()).orElse(null);
 
@@ -108,8 +127,7 @@ public class SalonResource {
                     com.fotolou.app.domain.User u = new com.fotolou.app.domain.User();
                     u.setLogin(cleanPhone);
                     u.setPassword(passwordEncoder.encode(cleanPhone + "_fotolou_secret_key"));
-                    u.setFirstName(salonName);
-                    u.setLastName("Propriétaire");
+                    applyUserDisplayName(u, ownerDisplayName, "Coiffeur Proprietaire");
                     u.setEmail(cleanPhone.replace("+", "") + "@fotolou.sn");
                     u.setActivated(true);
                     u.setLangKey("fr");
@@ -121,6 +139,9 @@ public class SalonResource {
                 authorityRepository.findById(com.fotolou.app.security.AuthoritiesConstants.USER).ifPresent(auths::add);
                 auths.removeIf(a -> com.fotolou.app.security.AuthoritiesConstants.CLIENT.equals(a.getName()));
                 ownerUser.setAuthorities(auths);
+                if (!ownerDisplayName.isBlank()) {
+                    applyUserDisplayName(ownerUser, ownerDisplayName, userDisplayName(ownerUser));
+                }
                 ownerUser = userRepository.save(ownerUser);
 
                 final com.fotolou.app.domain.User finalOwner = ownerUser;
@@ -130,7 +151,7 @@ public class SalonResource {
                     cp.setCreatedDate(java.time.Instant.now());
                     return cp;
                 });
-                profile.setName(salonName + " (Propriétaire)");
+                profile.setName(!ownerDisplayName.isBlank() ? ownerDisplayName : fallbackOwnerName(finalOwner, salonName));
                 profile.setUser(finalOwner);
                 profile.setSalon(salonEntity);
                 profile.setActive(true);
@@ -138,6 +159,7 @@ public class SalonResource {
             }
         }
 
+        salonDTO = enrichOwnerInfo(salonDTO);
         realtimeEventService.broadcast("SALON_CREATED", salonDTO);
         return ResponseEntity.created(new URI("/api/salons/" + salonDTO.getId()))
             .headers(HeaderUtil.createEntityCreationAlert(applicationName, true, ENTITY_NAME, salonDTO.getId().toString()))
@@ -172,6 +194,8 @@ public class SalonResource {
         }
 
         salonDTO = salonService.update(salonDTO);
+        syncOwnerNameFromDto(salonDTO);
+        salonDTO = enrichOwnerInfo(salonDTO);
         realtimeEventService.broadcast("SALON_UPDATED", salonDTO);
         return ResponseEntity.ok()
             .headers(HeaderUtil.createEntityUpdateAlert(applicationName, true, ENTITY_NAME, salonDTO.getId().toString()))
@@ -206,7 +230,10 @@ public class SalonResource {
             throw new BadRequestAlertException("Entity not found", ENTITY_NAME, "idnotfound");
         }
 
-        Optional<SalonDTO> result = salonService.partialUpdate(salonDTO);
+        Optional<SalonDTO> result = salonService.partialUpdate(salonDTO).map(dto -> {
+            syncOwnerNameFromDto(salonDTO);
+            return enrichOwnerInfo(dto);
+        });
         result.ifPresent(dto -> realtimeEventService.broadcast("SALON_UPDATED", dto));
 
         return ResponseUtil.wrapOrNotFound(
@@ -219,11 +246,24 @@ public class SalonResource {
      * {@code PUT /salons/:id/toggle-status} : Bascule l'état d'ouverture/fermeture du salon.
      */
     @PutMapping("/{id}/toggle-status")
-    public ResponseEntity<SalonDTO> toggleSalonStatus(@PathVariable("id") Long id) {
-        LOG.debug("REST request to toggle Salon status : {}", id);
-        com.fotolou.app.domain.Salon salon = salonRepository
-            .findById(id)
-            .orElseThrow(() -> new BadRequestAlertException("Salon not found", ENTITY_NAME, "idnotfound"));
+    public ResponseEntity<SalonDTO> toggleSalonStatus(@PathVariable("id") String idOrSlug) {
+        LOG.debug("REST request to toggle Salon status : {}", idOrSlug);
+
+        Optional<com.fotolou.app.domain.Salon> salonOpt = Optional.empty();
+        try {
+            Long id = Long.parseLong(idOrSlug);
+            salonOpt = salonRepository.findById(id);
+        } catch (NumberFormatException ignored) {
+            // Non-numeric value, fallback to slug lookup.
+        }
+
+        if (salonOpt.isEmpty()) {
+            salonOpt = salonRepository.findOneBySlug(idOrSlug);
+        }
+
+        com.fotolou.app.domain.Salon salon = salonOpt.orElseThrow(() ->
+            new BadRequestAlertException("Salon not found", ENTITY_NAME, "idnotfound")
+        );
 
         com.fotolou.app.domain.enumeration.SalonStatus nextStatus =
             salon.getStatus() == com.fotolou.app.domain.enumeration.SalonStatus.OPEN
@@ -232,7 +272,7 @@ public class SalonResource {
 
         salon.setStatus(nextStatus);
         com.fotolou.app.domain.Salon saved = salonRepository.save(salon);
-        SalonDTO dto = salonMapper.toDto(saved);
+        SalonDTO dto = enrichOwnerInfo(salonMapper.toDto(saved));
         realtimeEventService.broadcast("SALON_UPDATED", dto);
         return ResponseEntity.ok(dto);
     }
@@ -259,6 +299,7 @@ public class SalonResource {
             );
             dto.setPeopleWaiting((int) liveWaiting);
             dto.setEstimatedWaitMinutes((int) liveWaiting * 20);
+            enrichOwnerInfo(dto);
         });
         HttpHeaders headers = PaginationUtil.generatePaginationHttpHeaders(ServletUriComponentsBuilder.fromCurrentRequest(), page);
         return ResponseEntity.ok().headers(headers).body(page.getContent());
@@ -303,6 +344,7 @@ public class SalonResource {
             );
             dto.setPeopleWaiting((int) liveWaiting);
             dto.setEstimatedWaitMinutes((int) liveWaiting * 20);
+            enrichOwnerInfo(dto);
         });
 
         return ResponseUtil.wrapOrNotFound(result);
@@ -322,5 +364,201 @@ public class SalonResource {
         return ResponseEntity.noContent()
             .headers(HeaderUtil.createEntityDeletionAlert(applicationName, true, ENTITY_NAME, id.toString()))
             .build();
+    }
+
+    private SalonDTO enrichOwnerInfo(SalonDTO salonDTO) {
+        if (salonDTO == null || salonDTO.getId() == null) {
+            return salonDTO;
+        }
+
+        coiffeurProfileRepository
+            .findBySalonId(salonDTO.getId())
+            .stream()
+            .findFirst()
+            .ifPresent(profile -> {
+                String ownerName = resolveOwnerDisplayName(profile, salonDTO.getName());
+                if (!ownerName.isBlank()) {
+                    salonDTO.setOwnerName(ownerName);
+                    salonDTO.setCoiffeurName(ownerName);
+                }
+            });
+
+        return salonDTO;
+    }
+
+    private void syncOwnerNameFromDto(SalonDTO salonDTO) {
+        if (salonDTO == null || salonDTO.getId() == null) {
+            return;
+        }
+
+        String ownerName = normalizeOwnerName(salonDTO.getOwnerName(), salonDTO.getCoiffeurName());
+        if (ownerName.isBlank()) {
+            return;
+        }
+
+        coiffeurProfileRepository.findBySalonId(salonDTO.getId()).forEach(profile -> {
+            profile.setName(ownerName);
+            if (profile.getUser() != null) {
+                applyUserDisplayName(profile.getUser(), ownerName, userDisplayName(profile.getUser()));
+                userRepository.save(profile.getUser());
+            }
+            coiffeurProfileRepository.save(profile);
+        });
+    }
+
+    private String resolveOwnerDisplayName(com.fotolou.app.domain.CoiffeurProfile profile, String salonName) {
+        if (profile == null) {
+            return "";
+        }
+
+        String userName = normalizeOwnerName(userDisplayName(profile.getUser()));
+        if (isRealOwnerName(userName, salonName)) {
+            return userName;
+        }
+
+        String profileName = normalizeOwnerName(cleanGeneratedOwnerName(profile.getName(), salonName));
+        if (isRealOwnerName(profileName, salonName)) {
+            return profileName;
+        }
+
+        return "";
+    }
+
+    private String fallbackOwnerName(com.fotolou.app.domain.User user, String salonName) {
+        String userName = userDisplayName(user);
+        if (isRealOwnerName(userName, salonName)) {
+            return userName;
+        }
+        return "Coiffeur Proprietaire";
+    }
+
+    private String userDisplayName(com.fotolou.app.domain.User user) {
+        if (user == null) {
+            return "";
+        }
+
+        String firstName = user.getFirstName() != null ? user.getFirstName().trim() : "";
+        String lastName = user.getLastName() != null ? user.getLastName().trim() : "";
+        return (firstName + (lastName.isBlank() ? "" : " " + lastName)).trim();
+    }
+
+    private void applyUserDisplayName(com.fotolou.app.domain.User user, String displayName, String fallbackName) {
+        if (user == null) {
+            return;
+        }
+
+        String cleanName = normalizeOwnerName(displayName);
+        if (cleanName.isBlank()) {
+            cleanName = normalizeOwnerName(fallbackName);
+        }
+        if (cleanName.isBlank()) {
+            cleanName = "Coiffeur Proprietaire";
+        }
+
+        String[] parts = cleanName.split("\\s+", 2);
+        user.setFirstName(parts[0]);
+        user.setLastName(parts.length > 1 ? parts[1] : "");
+    }
+
+    private String cleanGeneratedOwnerName(String ownerName, String salonName) {
+        String cleanName = ownerName != null ? ownerName.trim() : "";
+        if (cleanName.isBlank()) {
+            return "";
+        }
+
+        cleanName = cleanName.replace("(Propriétaire)", "").replace("(Proprietaire)", "").trim();
+        if (salonName != null && !salonName.isBlank() && cleanName.equalsIgnoreCase(salonName.trim())) {
+            return "";
+        }
+        return cleanName;
+    }
+
+    private boolean isRealOwnerName(String ownerName, String salonName) {
+        String cleanName = normalizeOwnerName(ownerName);
+        if (cleanName.isBlank()) {
+            return false;
+        }
+
+        String normalized = cleanName.toLowerCase();
+        String normalizedSalon = salonName != null ? salonName.trim().toLowerCase() : "";
+        return (
+            !normalized.equals("coiffeur proprietaire") &&
+            !normalized.equals("barbier fotolou") &&
+            (normalizedSalon.isBlank() ||
+                (!normalized.equals(normalizedSalon) &&
+                    !normalized.equals(normalizedSalon + " propriétaire") &&
+                    !normalized.equals(normalizedSalon + " proprietaire")))
+        );
+    }
+
+    private String normalizeOwnerName(String... names) {
+        if (names == null) {
+            return "";
+        }
+
+        for (String name : names) {
+            if (name != null && !name.trim().isBlank()) {
+                return name.trim().replaceAll("\\s+", " ");
+            }
+        }
+        return "";
+    }
+
+    private boolean phoneAlreadyUsed(String normalizedPhone) {
+        return (
+            userRepository.findOneByLogin(normalizedPhone).isPresent() ||
+            userRepository
+                .findAll()
+                .stream()
+                .anyMatch(user -> samePhone(normalizedPhone, user.getLogin())) ||
+            coiffeurProfileRepository.findByPhone(normalizedPhone).isPresent() ||
+            coiffeurProfileRepository
+                .findAll()
+                .stream()
+                .anyMatch(profile -> samePhone(normalizedPhone, profile.getPhone())) ||
+            salonRepository
+                .findAll()
+                .stream()
+                .anyMatch(salon -> samePhone(normalizedPhone, salon.getPhone()))
+        );
+    }
+
+    private boolean samePhone(String normalizedPhone, String existingPhone) {
+        return normalizedPhone.equals(normalizePhoneForAccount(existingPhone));
+    }
+
+    private String normalizePhoneForAccount(String rawPhone) {
+        if (rawPhone == null) {
+            return "";
+        }
+
+        String trimmed = rawPhone.trim();
+        if (trimmed.isBlank()) {
+            return "";
+        }
+
+        String compact = trimmed.replaceAll("[^0-9+]", "");
+        String digits = compact.replaceAll("[^0-9]", "");
+        if (digits.length() < 9) {
+            return trimmed.replaceAll("\\s+", "");
+        }
+
+        if (digits.length() == 10 && digits.startsWith("0")) {
+            digits = digits.substring(1);
+        }
+
+        if (compact.startsWith("00")) {
+            return "+" + compact.substring(2);
+        }
+        if (compact.startsWith("+")) {
+            return "+" + digits;
+        }
+        if (digits.startsWith("221")) {
+            return "+" + digits;
+        }
+        if (digits.length() == 9) {
+            return "+221" + digits;
+        }
+        return "+" + digits;
     }
 }

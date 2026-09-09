@@ -16,6 +16,7 @@ import com.fotolou.app.repository.OrderItemRepository;
 import com.fotolou.app.repository.ProductRepository;
 import com.fotolou.app.repository.UserRepository;
 import com.fotolou.app.service.custom.order.OrderCustomService;
+import com.fotolou.app.service.custom.push.BrowserPushService;
 import com.fotolou.app.service.custom.realtime.RealtimeEventService;
 import com.fotolou.app.service.dto.BoutiqueOrderDTO;
 import com.fotolou.app.service.mapper.AppNotificationMapper;
@@ -52,6 +53,7 @@ public class OrderCustomServiceImpl implements OrderCustomService {
     private final AppNotificationRepository appNotificationRepository;
     private final AppNotificationMapper appNotificationMapper;
     private final RealtimeEventService realtimeEventService;
+    private final BrowserPushService browserPushService;
 
     public OrderCustomServiceImpl(
         BoutiqueOrderRepository boutiqueOrderRepository,
@@ -62,7 +64,8 @@ public class OrderCustomServiceImpl implements OrderCustomService {
         ApplicationProperties applicationProperties,
         AppNotificationRepository appNotificationRepository,
         AppNotificationMapper appNotificationMapper,
-        RealtimeEventService realtimeEventService
+        RealtimeEventService realtimeEventService,
+        BrowserPushService browserPushService
     ) {
         this.boutiqueOrderRepository = boutiqueOrderRepository;
         this.orderItemRepository = orderItemRepository;
@@ -73,6 +76,7 @@ public class OrderCustomServiceImpl implements OrderCustomService {
         this.appNotificationRepository = appNotificationRepository;
         this.appNotificationMapper = appNotificationMapper;
         this.realtimeEventService = realtimeEventService;
+        this.browserPushService = browserPushService;
     }
 
     @Override
@@ -256,6 +260,7 @@ public class OrderCustomServiceImpl implements OrderCustomService {
             notif.setCreatedDate(Instant.now());
             AppNotification saved = appNotificationRepository.save(notif);
             realtimeEventService.broadcast("NOTIFICATION_CREATED", appNotificationMapper.toDto(saved));
+            browserPushService.sendToUser(user, saved);
             LOG.info("🔔 Notification In-App commande créée : {}", title);
         } catch (Exception e) {
             LOG.warn("⚠️ Erreur création notification in-app commande : {}", e.getMessage());

@@ -24,6 +24,7 @@
     <include file="config/liquibase/changelog/20260822180743_added_entity_BoutiqueOrder.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20260822180744_added_entity_OrderItem.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20260822180745_added_entity_AppNotification.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260908000000_added_entity_PushSubscription.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20260822180746_added_entity_PlatformSettings.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20260822180747_added_entity_OtpVerification.xml" relativeToChangelogFile="false"/>
     <!-- jhipster-needle-liquibase-add-changelog - JHipster will add liquibase changelogs here -->
@@ -37,6 +38,7 @@
     <include file="config/liquibase/changelog/20260822180743_added_entity_constraints_BoutiqueOrder.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20260822180744_added_entity_constraints_OrderItem.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20260822180745_added_entity_constraints_AppNotification.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260908000001_added_entity_constraints_PushSubscription.xml" relativeToChangelogFile="false"/>
     <!-- jhipster-needle-liquibase-add-constraints-changelog - JHipster will add liquibase constraints changelogs here -->
     <!-- jhipster-needle-liquibase-add-incremental-changelog - JHipster will add incremental liquibase changelogs here -->
 </databaseChangeLog>

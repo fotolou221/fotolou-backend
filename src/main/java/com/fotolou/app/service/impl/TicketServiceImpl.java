@@ -1,11 +1,14 @@
 package com.fotolou.app.service.impl;
 
 import com.fotolou.app.domain.Ticket;
+import com.fotolou.app.domain.User;
+import com.fotolou.app.domain.enumeration.TicketOwnerType;
 import com.fotolou.app.repository.TicketRepository;
 import com.fotolou.app.service.TicketService;
 import com.fotolou.app.service.UserService;
 import com.fotolou.app.service.dto.TicketDTO;
 import com.fotolou.app.service.mapper.TicketMapper;
+import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -97,7 +100,7 @@ public class TicketServiceImpl implements TicketService {
     @Transactional(readOnly = true)
     public Optional<TicketDTO> findOne(Long id) {
         LOG.debug("Request to get Ticket : {}", id);
-        return ticketRepository.findOneWithEagerRelationships(id).map(ticketMapper::toDto);
+        return ticketRepository.findOneWithEagerRelationships(id).map(this::toDtoWithQueueState);
     }
 
     @Override
@@ -110,5 +113,47 @@ public class TicketServiceImpl implements TicketService {
     @Transactional(readOnly = true)
     public boolean existsById(Long id) {
         return ticketRepository.existsById(id);
+    }
+
+    private TicketDTO toDtoWithQueueState(Ticket ticket) {
+        TicketDTO dto = ticketMapper.toDto(ticket);
+        if (ticket.getSalon() != null && ticket.getSalon().getId() != null) {
+            dto.setCurrentTicketNumber(findCurrentTicketNumber(ticket.getSalon().getId()));
+        }
+        applySelfOwnerName(dto, ticket);
+        return dto;
+    }
+
+    private void applySelfOwnerName(TicketDTO dto, Ticket ticket) {
+        if (dto == null || ticket == null || ticket.getOwnerType() != TicketOwnerType.SELF || ticket.getUser() == null) {
+            return;
+        }
+
+        String userName = userDisplayName(ticket.getUser());
+        if (!userName.isBlank()) {
+            dto.setOwnerName(userName);
+        }
+    }
+
+    private String userDisplayName(User user) {
+        if (user == null) {
+            return "";
+        }
+
+        String firstName = user.getFirstName() != null ? user.getFirstName().trim() : "";
+        String lastName = user.getLastName() != null ? user.getLastName().trim() : "";
+        return (firstName + (lastName.isBlank() ? "" : " " + lastName)).trim();
+    }
+
+    private Integer findCurrentTicketNumber(Long salonId) {
+        return ticketRepository
+            .findBySalonIdAndStatusInOrderByTicketNumberAsc(
+                salonId,
+                List.of(com.fotolou.app.domain.enumeration.TicketStatus.YOUR_TURN, com.fotolou.app.domain.enumeration.TicketStatus.WAITING)
+            )
+            .stream()
+            .findFirst()
+            .map(Ticket::getTicketNumber)
+            .orElse(null);
     }
 }

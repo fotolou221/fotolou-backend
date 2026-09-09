@@ -10,6 +10,7 @@ import com.fotolou.app.domain.enumeration.TicketStatus;
 import com.fotolou.app.repository.SalonRepository;
 import com.fotolou.app.repository.TicketRepository;
 import com.fotolou.app.service.UserService;
+import com.fotolou.app.service.custom.push.BrowserPushService;
 import com.fotolou.app.service.custom.queue.QueueEngineService;
 import com.fotolou.app.service.custom.sms.SmsService;
 import com.fotolou.app.service.dto.TicketDTO;
@@ -19,8 +20,10 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.slf4j.Logger;
@@ -47,6 +50,7 @@ public class QueueEngineServiceImpl implements QueueEngineService {
     private final com.fotolou.app.repository.AppNotificationRepository appNotificationRepository;
     private final com.fotolou.app.service.mapper.AppNotificationMapper appNotificationMapper;
     private final com.fotolou.app.repository.CoiffeurProfileRepository coiffeurProfileRepository;
+    private final BrowserPushService browserPushService;
 
     public QueueEngineServiceImpl(
         TicketRepository ticketRepository,
@@ -57,7 +61,8 @@ public class QueueEngineServiceImpl implements QueueEngineService {
         com.fotolou.app.service.custom.realtime.RealtimeEventService realtimeEventService,
         com.fotolou.app.repository.AppNotificationRepository appNotificationRepository,
         com.fotolou.app.service.mapper.AppNotificationMapper appNotificationMapper,
-        com.fotolou.app.repository.CoiffeurProfileRepository coiffeurProfileRepository
+        com.fotolou.app.repository.CoiffeurProfileRepository coiffeurProfileRepository,
+        BrowserPushService browserPushService
     ) {
         this.ticketRepository = ticketRepository;
         this.salonRepository = salonRepository;
@@ -68,6 +73,7 @@ public class QueueEngineServiceImpl implements QueueEngineService {
         this.appNotificationRepository = appNotificationRepository;
         this.appNotificationMapper = appNotificationMapper;
         this.coiffeurProfileRepository = coiffeurProfileRepository;
+        this.browserPushService = browserPushService;
     }
 
     @Override
@@ -119,7 +125,8 @@ public class QueueEngineServiceImpl implements QueueEngineService {
             List.of(TicketStatus.WAITING, TicketStatus.YOUR_TURN)
         );
 
-        int nextNumber = activeTickets.size() + 1;
+        Instant startOfDay = LocalDate.now(ZoneId.systemDefault()).atStartOfDay(ZoneId.systemDefault()).toInstant();
+        int nextNumber = Optional.ofNullable(ticketRepository.findMaxTicketNumberForSalonAndDay(salon.getId(), startOfDay)).orElse(0) + 1;
         boolean chairOccupied = activeTickets.stream().anyMatch(t -> t.getStatus() == TicketStatus.YOUR_TURN);
         int currentPeopleAhead = activeTickets.size();
         // 1. Empêcher les doublons au sein de la demande elle-même
@@ -176,7 +183,6 @@ public class QueueEngineServiceImpl implements QueueEngineService {
             ticket.setSalon(salon);
             ticket.setUser(currentUser);
             ticket.setTicketNumber(nextNumber++);
-            ticket.setOwnerName(b.name() != null && !b.name().isBlank() ? b.name() : "Client");
 
             TicketOwnerType ownerType = TicketOwnerType.SELF;
             if ("RELATIVE".equalsIgnoreCase(b.type())) {
@@ -185,6 +191,7 @@ public class QueueEngineServiceImpl implements QueueEngineService {
                 ownerType = TicketOwnerType.CUSTOM;
             }
             ticket.setOwnerType(ownerType);
+            ticket.setOwnerName(resolveOwnerName(ownerType, b.name(), currentUser));
             ticket.setCategory(TicketCategory.ACTIVE);
             ticket.setItemCount(1);
             ticket.setCreatedDate(Instant.now());
@@ -277,7 +284,7 @@ public class QueueEngineServiceImpl implements QueueEngineService {
             }
         }
 
-        List<TicketDTO> dtos = createdTickets.stream().map(ticketMapper::toDto).toList();
+        List<TicketDTO> dtos = toDtosWithQueueState(createdTickets);
         realtimeEventService.broadcast("TICKET_CREATED", dtos);
         return dtos;
     }
@@ -357,7 +364,7 @@ public class QueueEngineServiceImpl implements QueueEngineService {
         }
 
         recalculateQueue(ticket.getSalon().getId());
-        TicketDTO dto = ticketMapper.toDto(updated);
+        TicketDTO dto = toDtoWithQueueState(updated);
         realtimeEventService.broadcast("TICKET_UPDATED", dto);
         return dto;
     }
@@ -375,7 +382,7 @@ public class QueueEngineServiceImpl implements QueueEngineService {
 
         Ticket updated = ticketRepository.save(ticket);
         recalculateQueue(ticket.getSalon().getId());
-        TicketDTO dto = ticketMapper.toDto(updated);
+        TicketDTO dto = toDtoWithQueueState(updated);
         realtimeEventService.broadcast("TICKET_UPDATED", dto);
         return dto;
     }
@@ -429,7 +436,7 @@ public class QueueEngineServiceImpl implements QueueEngineService {
         }
 
         recalculateQueue(ticket.getSalon().getId());
-        TicketDTO dto = ticketMapper.toDto(updated);
+        TicketDTO dto = toDtoWithQueueState(updated);
         realtimeEventService.broadcast("TICKET_UPDATED", dto);
         return dto;
     }
@@ -447,10 +454,20 @@ public class QueueEngineServiceImpl implements QueueEngineService {
         int pos = 0;
         for (Ticket t : activeTickets) {
             int oldAhead = t.getPeopleAhead() != null ? t.getPeopleAhead() : -1;
+            TicketStatus oldStatus = t.getStatus();
+            if (pos == 0) {
+                t.setStatus(TicketStatus.YOUR_TURN);
+            } else if (t.getStatus() == TicketStatus.YOUR_TURN) {
+                t.setStatus(TicketStatus.WAITING);
+            }
             t.setPeopleAhead(pos);
-            t.setTicketNumber(pos + 1);
             t.setEstimatedWaitMinutes(pos * DEFAULT_MINUTES_PER_CUT);
+            t.setLastModifiedDate(Instant.now());
             ticketRepository.save(t);
+
+            if (pos == 0 && oldStatus != TicketStatus.YOUR_TURN) {
+                notifyTicketIsReady(t, salon);
+            }
 
             // Alerte in-app proactive : il ne reste plus qu'une seule personne devant le client
             if (pos == 1 && oldAhead > 1 && t.getUser() != null) {
@@ -470,8 +487,31 @@ public class QueueEngineServiceImpl implements QueueEngineService {
         }
 
         updateSalonAffluence(salon);
-        List<TicketDTO> updatedQueueDtos = activeTickets.stream().map(ticketMapper::toDto).toList();
+        List<TicketDTO> updatedQueueDtos = toDtosWithQueueState(activeTickets);
         realtimeEventService.broadcast("QUEUE_UPDATED", updatedQueueDtos);
+    }
+
+    private void notifyTicketIsReady(Ticket ticket, Salon salon) {
+        if (ticket.getUser() == null) {
+            return;
+        }
+
+        if (ticket.getUser().getLogin() != null) {
+            smsService.sendTicketYourTurnAlert(ticket.getUser().getLogin(), salon.getName(), ticket.getTicketNumber());
+        }
+
+        sendInAppNotification(
+            ticket.getUser(),
+            com.fotolou.app.domain.enumeration.RecipientRole.CLIENT,
+            com.fotolou.app.domain.enumeration.NotificationType.TICKET,
+            "C'est votre tour ! ✂️",
+            String.format(
+                "Votre coiffeur chez %s vous attend maintenant au fauteuil pour le ticket #%d !",
+                salon.getName(),
+                ticket.getTicketNumber()
+            ),
+            "/client/tickets"
+        );
     }
 
     private void sendInAppNotification(
@@ -494,6 +534,7 @@ public class QueueEngineServiceImpl implements QueueEngineService {
             notif.setCreatedDate(Instant.now());
             com.fotolou.app.domain.AppNotification saved = appNotificationRepository.save(notif);
             realtimeEventService.broadcast("NOTIFICATION_CREATED", appNotificationMapper.toDto(saved));
+            browserPushService.sendToUser(user, saved);
             LOG.info("🔔 Notification In-App créée [{}] : {}", role, title);
         } catch (Exception e) {
             LOG.warn("⚠️ Erreur création notification in-app : {}", e.getMessage());
@@ -522,19 +563,85 @@ public class QueueEngineServiceImpl implements QueueEngineService {
             if (cpOpt.isPresent() && cpOpt.get().getSalon() != null) {
                 Long salonId = cpOpt.get().getSalon().getId();
                 List<Ticket> salonTickets = ticketRepository.findBySalonIdOrderByCreatedDateDesc(salonId);
-                return salonTickets.stream().map(ticketMapper::toDto).toList();
+                return toDtosWithQueueState(salonTickets);
             }
         }
 
         List<Ticket> tickets = ticketRepository.findByUserIdOrderByCreatedDateDesc(user.getId());
-        return tickets.stream().map(ticketMapper::toDto).toList();
+        return toDtosWithQueueState(tickets);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<TicketDTO> getSalonQueue(Long salonId) {
         List<Ticket> activeTickets = ticketRepository.findBySalonIdAndCategoryOrderByTicketNumberAsc(salonId, TicketCategory.ACTIVE);
-        return activeTickets.stream().map(ticketMapper::toDto).toList();
+        return toDtosWithQueueState(activeTickets);
+    }
+
+    private List<TicketDTO> toDtosWithQueueState(List<Ticket> tickets) {
+        Map<Long, Integer> currentNumbersBySalon = new HashMap<>();
+        return tickets
+            .stream()
+            .map(ticket -> {
+                TicketDTO dto = ticketMapper.toDto(ticket);
+                Long salonId = ticket.getSalon() != null ? ticket.getSalon().getId() : null;
+                if (salonId != null) {
+                    dto.setCurrentTicketNumber(currentNumbersBySalon.computeIfAbsent(salonId, this::findCurrentTicketNumber));
+                }
+                applySelfOwnerName(dto, ticket);
+                return dto;
+            })
+            .toList();
+    }
+
+    private TicketDTO toDtoWithQueueState(Ticket ticket) {
+        TicketDTO dto = ticketMapper.toDto(ticket);
+        if (ticket.getSalon() != null && ticket.getSalon().getId() != null) {
+            dto.setCurrentTicketNumber(findCurrentTicketNumber(ticket.getSalon().getId()));
+        }
+        applySelfOwnerName(dto, ticket);
+        return dto;
+    }
+
+    private String resolveOwnerName(TicketOwnerType ownerType, String requestedName, User currentUser) {
+        if (ownerType == TicketOwnerType.SELF && currentUser != null) {
+            String userName = userDisplayName(currentUser);
+            if (!userName.isBlank()) {
+                return userName;
+            }
+        }
+
+        return requestedName != null && !requestedName.isBlank() ? requestedName.trim() : "Client";
+    }
+
+    private void applySelfOwnerName(TicketDTO dto, Ticket ticket) {
+        if (dto == null || ticket == null || ticket.getOwnerType() != TicketOwnerType.SELF || ticket.getUser() == null) {
+            return;
+        }
+
+        String userName = userDisplayName(ticket.getUser());
+        if (!userName.isBlank()) {
+            dto.setOwnerName(userName);
+        }
+    }
+
+    private String userDisplayName(User user) {
+        if (user == null) {
+            return "";
+        }
+
+        String firstName = user.getFirstName() != null ? user.getFirstName().trim() : "";
+        String lastName = user.getLastName() != null ? user.getLastName().trim() : "";
+        return (firstName + (lastName.isBlank() ? "" : " " + lastName)).trim();
+    }
+
+    private Integer findCurrentTicketNumber(Long salonId) {
+        return ticketRepository
+            .findBySalonIdAndStatusInOrderByTicketNumberAsc(salonId, List.of(TicketStatus.YOUR_TURN, TicketStatus.WAITING))
+            .stream()
+            .findFirst()
+            .map(Ticket::getTicketNumber)
+            .orElse(null);
     }
 
     private void updateSalonAffluence(Salon salon) {

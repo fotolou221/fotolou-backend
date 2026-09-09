@@ -98,13 +98,10 @@ public class AuthOtpServiceImpl implements AuthOtpService {
             throw new BadCredentialsException("Code de vérification invalide ou expiré.");
         }
 
-        // Récupération ou création automatique du compte User
-        String targetRole = role != null && role.equalsIgnoreCase("coiffeur") ? AuthoritiesConstants.COIFFEUR : AuthoritiesConstants.CLIENT;
-
-        User user = findOrCreateUser(normalizedPhone, targetRole, fullName);
-        AuthUserProfile profile = buildProfile(user);
+        User user = findOrCreateUser(normalizedPhone, fullName);
+        AuthUserProfile profile = buildProfile(user, role);
         String accessToken = createAccessToken(user, profile.role());
-        String refreshToken = createRefreshToken(user);
+        String refreshToken = createRefreshToken(user, profile.role());
 
         return new AuthResult(accessToken, accessToken, refreshToken, profile);
     }
@@ -134,9 +131,10 @@ public class AuthOtpServiceImpl implements AuthOtpService {
                 throw new BadCredentialsException("Le compte utilisateur est désactivé.");
             }
 
-            AuthUserProfile profile = buildProfile(user);
+            String requestedRole = jwt.getClaimAsString("role");
+            AuthUserProfile profile = buildProfile(user, requestedRole);
             String newAccessToken = createAccessToken(user, profile.role());
-            String newRefreshToken = createRefreshToken(user);
+            String newRefreshToken = createRefreshToken(user, profile.role());
 
             LOG.info("🔄 Jeton rafraîchi avec succès pour l'utilisateur : {} (15 min access, 45 jours refresh)", login);
             return new AuthResult(newAccessToken, newAccessToken, newRefreshToken, profile);
@@ -147,7 +145,7 @@ public class AuthOtpServiceImpl implements AuthOtpService {
     }
 
     private String createAccessToken(User user, String roleClean) {
-        String authorities = user.getAuthorities().stream().map(Authority::getName).collect(Collectors.joining(" "));
+        String authorities = resolveTokenAuthorities(user, roleClean);
         Instant now = Instant.now();
         Instant validity = now.plus(tokenValidityInSeconds, ChronoUnit.SECONDS);
 
@@ -165,7 +163,16 @@ public class AuthOtpServiceImpl implements AuthOtpService {
         return this.jwtEncoder.encode(JwtEncoderParameters.from(jwsHeader, claims)).getTokenValue();
     }
 
-    private String createRefreshToken(User user) {
+    private String resolveTokenAuthorities(User user, String roleClean) {
+        if ("admin".equals(roleClean)) {
+            return user.getAuthorities().stream().map(Authority::getName).collect(Collectors.joining(" "));
+        }
+
+        String primaryRole = "coiffeur".equals(roleClean) ? AuthoritiesConstants.COIFFEUR : AuthoritiesConstants.CLIENT;
+        return AuthoritiesConstants.USER + " " + primaryRole;
+    }
+
+    private String createRefreshToken(User user, String roleClean) {
         Instant now = Instant.now();
         Instant validity = now.plus(refreshTokenValidityInSeconds, ChronoUnit.SECONDS);
 
@@ -175,13 +182,14 @@ public class AuthOtpServiceImpl implements AuthOtpService {
             .subject(user.getLogin())
             .claim(USER_ID_CLAIM, user.getId())
             .claim(TOKEN_TYPE_CLAIM, "REFRESH")
+            .claim("role", roleClean)
             .build();
 
         JwsHeader jwsHeader = JwsHeader.with(JWT_ALGORITHM).build();
         return this.jwtEncoder.encode(JwtEncoderParameters.from(jwsHeader, claims)).getTokenValue();
     }
 
-    private AuthUserProfile buildProfile(User user) {
+    private AuthUserProfile buildProfile(User user, String requestedRole) {
         Optional<com.fotolou.app.domain.CoiffeurProfile> optProfile = coiffeurProfileRepository.findOneWithSalonByUserLogin(
             user.getLogin()
         );
@@ -192,25 +200,25 @@ public class AuthOtpServiceImpl implements AuthOtpService {
             salonSlug = optProfile.get().getSalon().getSlug();
         }
 
-        boolean hasCoiffeurProfile = optProfile.isPresent();
-        boolean isCoiffeur =
-            hasCoiffeurProfile ||
-            user
-                .getAuthorities()
-                .stream()
-                .anyMatch(a -> a.getName().equals(AuthoritiesConstants.COIFFEUR));
+        boolean hasCoiffeurProfile = optProfile.isPresent() && optProfile.get().getSalon() != null;
+        boolean isCoiffeur = hasCoiffeurProfile;
         boolean isAdmin = user
             .getAuthorities()
             .stream()
             .anyMatch(a -> a.getName().equals(AuthoritiesConstants.ADMIN) || a.getName().equals(AuthoritiesConstants.SUPER_ADMIN));
+        boolean wantsCoiffeur = requestedRole != null && requestedRole.equalsIgnoreCase("coiffeur");
 
-        String roleClean = isAdmin ? "admin" : isCoiffeur ? "coiffeur" : "client";
-        String homeRoute = isAdmin ? "/admin/dashboard" : isCoiffeur ? "/coiffeur/home" : "/client/home";
+        String roleClean = isAdmin ? "admin" : wantsCoiffeur && isCoiffeur ? "coiffeur" : "client";
+        String homeRoute = switch (roleClean) {
+            case "admin" -> "/admin/dashboard";
+            case "coiffeur" -> "/coiffeur/home";
+            default -> "/client/home";
+        };
 
         String displayName =
             user.getFirstName() != null && !user.getFirstName().isBlank()
                 ? user.getFirstName() + (user.getLastName() != null ? " " + user.getLastName() : "")
-                : isCoiffeur
+                : "coiffeur".equals(roleClean)
                   ? "Barbier Fotolou"
                   : isAdmin
                     ? "Administrateur Fotolou"
@@ -228,25 +236,10 @@ public class AuthOtpServiceImpl implements AuthOtpService {
         );
     }
 
-    private User findOrCreateUser(String phone, String roleName, String optionalName) {
+    private User findOrCreateUser(String phone, String optionalName) {
         Optional<User> optUser = userRepository.findOneWithAuthoritiesByLogin(phone);
         if (optUser.isPresent()) {
-            User existing = optUser.get();
-            boolean isCoiffeurReq = AuthoritiesConstants.COIFFEUR.equalsIgnoreCase(roleName);
-            boolean hasCoiffeurProfile = coiffeurProfileRepository.findOneWithSalonByUserLogin(phone).isPresent();
-
-            if (isCoiffeurReq || hasCoiffeurProfile) {
-                boolean hasRole = existing
-                    .getAuthorities()
-                    .stream()
-                    .anyMatch(a -> a.getName().equals(AuthoritiesConstants.COIFFEUR));
-                if (!hasRole) {
-                    authorityRepository.findById(AuthoritiesConstants.COIFFEUR).ifPresent(existing.getAuthorities()::add);
-                    existing.getAuthorities().removeIf(a -> a.getName().equals(AuthoritiesConstants.CLIENT));
-                    return userRepository.save(existing);
-                }
-            }
-            return existing;
+            return optUser.get();
         }
 
         User newUser = new User();
@@ -262,12 +255,12 @@ public class AuthOtpServiceImpl implements AuthOtpService {
                 newUser.setLastName(parts[1]);
             }
         } else {
-            newUser.setFirstName(roleName.equals(AuthoritiesConstants.COIFFEUR) ? "Coiffeur" : "Client");
+            newUser.setFirstName("Client");
             newUser.setLastName(phone.substring(Math.max(0, phone.length() - 4)));
         }
 
         Set<Authority> authorities = new HashSet<>();
-        authorityRepository.findById(roleName).ifPresent(authorities::add);
+        authorityRepository.findById(AuthoritiesConstants.CLIENT).ifPresent(authorities::add);
         authorityRepository.findById(AuthoritiesConstants.USER).ifPresent(authorities::add);
         newUser.setAuthorities(authorities);
 

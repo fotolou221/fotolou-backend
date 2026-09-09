@@ -56,6 +56,12 @@ public class SalonDTO implements Serializable {
     @Size(max = 500)
     private String coverUrl;
 
+    @Size(max = 100)
+    private String ownerName;
+
+    @Size(max = 100)
+    private String coiffeurName;
+
     private Double latitude;
 
     private Double longitude;
@@ -171,6 +177,22 @@ public class SalonDTO implements Serializable {
         this.coverUrl = coverUrl;
     }
 
+    public String getOwnerName() {
+        return ownerName;
+    }
+
+    public void setOwnerName(String ownerName) {
+        this.ownerName = ownerName;
+    }
+
+    public String getCoiffeurName() {
+        return coiffeurName;
+    }
+
+    public void setCoiffeurName(String coiffeurName) {
+        this.coiffeurName = coiffeurName;
+    }
+
     public Double getLatitude() {
         return latitude;
     }
@@ -249,6 +271,8 @@ public class SalonDTO implements Serializable {
             ", peopleWaiting=" + getPeopleWaiting() +
             ", avatarUrl='" + getAvatarUrl() + "'" +
             ", coverUrl='" + getCoverUrl() + "'" +
+            ", ownerName='" + getOwnerName() + "'" +
+            ", coiffeurName='" + getCoiffeurName() + "'" +
             ", latitude=" + getLatitude() +
             ", longitude=" + getLongitude() +
             ", active='" + getActive() + "'" +
