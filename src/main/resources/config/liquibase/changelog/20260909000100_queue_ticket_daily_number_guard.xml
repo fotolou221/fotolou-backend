@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260909000100-1" author="codex" dbms="postgresql">
+        <preConditions onFail="HALT">
+            <sqlCheck expectedResult="0">
+                select count(*)
+                from (
+                    select salon_id, ticket_number, created_date::date
+                    from ticket
+                    where salon_id is not null
+                      and ticket_number is not null
+                      and created_date is not null
+                    group by salon_id, ticket_number, created_date::date
+                    having count(*) &gt; 1
+                ) duplicate_ticket_numbers
+            </sqlCheck>
+        </preConditions>
+        <sql>
+            create unique index if not exists ux_ticket_salon_day_ticket_number
+                on ticket (salon_id, (created_date::date), ticket_number)
+        </sql>
+    </changeSet>
+
+    <changeSet id="20260909000100-2" author="codex">
+        <createIndex indexName="idx_ticket_salon_status_number" tableName="ticket">
+            <column name="salon_id"/>
+            <column name="status"/>
+            <column name="ticket_number"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

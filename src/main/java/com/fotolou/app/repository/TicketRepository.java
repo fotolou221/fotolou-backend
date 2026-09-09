@@ -1,6 +1,7 @@
 package com.fotolou.app.repository;
 
 import com.fotolou.app.domain.Ticket;
+import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
@@ -28,10 +29,28 @@ public interface TicketRepository extends JpaRepository<Ticket, Long>, JpaSpecif
         List<com.fotolou.app.domain.enumeration.TicketStatus> statuses
     );
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query(
+        "select ticket from Ticket ticket where ticket.salon.id = :salonId and ticket.status in :statuses order by ticket.ticketNumber asc"
+    )
+    List<Ticket> findBySalonIdAndStatusInOrderByTicketNumberAscForUpdate(
+        @Param("salonId") Long salonId,
+        @Param("statuses") List<com.fotolou.app.domain.enumeration.TicketStatus> statuses
+    );
+
     List<Ticket> findByUserIdOrderByCreatedDateDesc(Long userId);
 
-    @Query("select max(t.ticketNumber) from Ticket t where t.salon.id = :salonId and t.createdDate >= :startOfDay")
-    Integer findMaxTicketNumberForSalonAndDay(@Param("salonId") Long salonId, @Param("startOfDay") java.time.Instant startOfDay);
+    @Query(
+        "select max(t.ticketNumber) from Ticket t where t.salon.id = :salonId and t.createdDate >= :startOfDay and t.createdDate < :startOfNextDay"
+    )
+    Integer findMaxTicketNumberForSalonAndDay(
+        @Param("salonId") Long salonId,
+        @Param("startOfDay") java.time.Instant startOfDay,
+        @Param("startOfNextDay") java.time.Instant startOfNextDay
+    );
+
+    @Query("select ticket.salon.id from Ticket ticket where ticket.id = :ticketId")
+    Optional<Long> findSalonIdByTicketId(@Param("ticketId") Long ticketId);
 
     long countBySalonIdAndStatusIn(Long salonId, List<com.fotolou.app.domain.enumeration.TicketStatus> statuses);
 

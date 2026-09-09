@@ -40,6 +40,9 @@ public class QueueEngineServiceImpl implements QueueEngineService {
 
     private static final Logger LOG = LoggerFactory.getLogger(QueueEngineServiceImpl.class);
     private static final int DEFAULT_MINUTES_PER_CUT = 20;
+    private static final List<TicketStatus> ACTIVE_QUEUE_STATUSES = List.of(TicketStatus.YOUR_TURN, TicketStatus.WAITING);
+
+    private record LockedTicket(Ticket ticket, Salon salon) {}
 
     private final TicketRepository ticketRepository;
     private final SalonRepository salonRepository;
@@ -80,7 +83,7 @@ public class QueueEngineServiceImpl implements QueueEngineService {
     public List<TicketDTO> bookTickets(String salonIdOrSlug, String userLogin, List<BeneficiaryItem> beneficiaries) {
         Salon salon = resolveSalon(salonIdOrSlug);
         User currentUser = userLogin != null ? userService.findOneByLogin(userLogin).orElse(null) : null;
-        return bookTicketsForSalon(salon, currentUser, beneficiaries);
+        return bookTicketsForSalon(lockSalonForQueueMutation(salon.getId()), currentUser, beneficiaries);
     }
 
     @Override
@@ -91,10 +94,7 @@ public class QueueEngineServiceImpl implements QueueEngineService {
 
     @Override
     public List<TicketDTO> bookTickets(Long salonId, User currentUser, List<BeneficiaryItem> beneficiaries) {
-        Salon salon = salonRepository
-            .findById(salonId)
-            .orElseThrow(() -> new IllegalArgumentException("Salon introuvable ID : " + salonId));
-        return bookTicketsForSalon(salon, currentUser, beneficiaries);
+        return bookTicketsForSalon(lockSalonForQueueMutation(salonId), currentUser, beneficiaries);
     }
 
     private Salon resolveSalon(String salonIdOrSlug) {
@@ -115,23 +115,52 @@ public class QueueEngineServiceImpl implements QueueEngineService {
             .orElseThrow(() -> new IllegalArgumentException("Salon introuvable : " + salonIdOrSlug));
     }
 
+    private Salon lockSalonForQueueMutation(Long salonId) {
+        if (salonId == null) {
+            throw new IllegalArgumentException("Salon requis pour modifier la file d'attente.");
+        }
+
+        return salonRepository
+            .findByIdForUpdate(salonId)
+            .orElseThrow(() -> new IllegalArgumentException("Salon introuvable ID : " + salonId));
+    }
+
+    private LockedTicket lockQueueAndLoadTicket(Long ticketId) {
+        Long salonId = ticketRepository
+            .findSalonIdByTicketId(ticketId)
+            .orElseThrow(() -> new IllegalArgumentException("Ticket introuvable ID : " + ticketId));
+        Salon salon = lockSalonForQueueMutation(salonId);
+        Ticket ticket = ticketRepository
+            .findOneWithToOneRelationships(ticketId)
+            .orElseThrow(() -> new IllegalArgumentException("Ticket introuvable ID : " + ticketId));
+        return new LockedTicket(ticket, salon);
+    }
+
     private List<TicketDTO> bookTicketsForSalon(Salon salon, User currentUser, List<BeneficiaryItem> beneficiaries) {
         if (salon.getStatus() == SalonStatus.CLOSED) {
             throw new IllegalStateException("Le salon est actuellement fermé aux réservations.");
         }
 
-        List<Ticket> activeTickets = ticketRepository.findBySalonIdAndStatusInOrderByTicketNumberAsc(
+        List<BeneficiaryItem> requestedBeneficiaries =
+            beneficiaries == null || beneficiaries.isEmpty() ? List.of(new BeneficiaryItem("Moi", "SELF", null, null)) : beneficiaries;
+
+        List<Ticket> activeTickets = ticketRepository.findBySalonIdAndStatusInOrderByTicketNumberAscForUpdate(
             salon.getId(),
-            List.of(TicketStatus.WAITING, TicketStatus.YOUR_TURN)
+            ACTIVE_QUEUE_STATUSES
         );
 
-        Instant startOfDay = LocalDate.now(ZoneId.systemDefault()).atStartOfDay(ZoneId.systemDefault()).toInstant();
-        int nextNumber = Optional.ofNullable(ticketRepository.findMaxTicketNumberForSalonAndDay(salon.getId(), startOfDay)).orElse(0) + 1;
+        ZoneId ticketDayZone = ZoneId.systemDefault();
+        LocalDate ticketDay = LocalDate.now(ticketDayZone);
+        Instant startOfDay = ticketDay.atStartOfDay(ticketDayZone).toInstant();
+        Instant startOfNextDay = ticketDay.plusDays(1).atStartOfDay(ticketDayZone).toInstant();
+        int nextNumber =
+            Optional.ofNullable(ticketRepository.findMaxTicketNumberForSalonAndDay(salon.getId(), startOfDay, startOfNextDay)).orElse(0) +
+            1;
         boolean chairOccupied = activeTickets.stream().anyMatch(t -> t.getStatus() == TicketStatus.YOUR_TURN);
         int currentPeopleAhead = activeTickets.size();
         // 1. Empêcher les doublons au sein de la demande elle-même
         Set<String> requestNames = new HashSet<>();
-        for (BeneficiaryItem b : beneficiaries) {
+        for (BeneficiaryItem b : requestedBeneficiaries) {
             String bName = b.name() != null ? b.name().trim() : "Client";
             if (!requestNames.add(bName.toLowerCase())) {
                 throw new IllegalArgumentException(
@@ -141,7 +170,7 @@ public class QueueEngineServiceImpl implements QueueEngineService {
         }
 
         // 2. Empêcher un utilisateur de prendre deux tickets pour lui-même dans la file de ce salon
-        boolean requestingSelf = beneficiaries
+        boolean requestingSelf = requestedBeneficiaries
             .stream()
             .anyMatch(b -> "SELF".equalsIgnoreCase(b.type()) || (b.name() != null && b.name().toLowerCase().startsWith("moi")));
         if (requestingSelf && currentUser != null) {
@@ -163,7 +192,7 @@ public class QueueEngineServiceImpl implements QueueEngineService {
         }
 
         // 3. Empêcher un doublon de nom avec une personne déjà active dans la file de ce salon (hors compte personnel SELF géré par la règle 2)
-        for (BeneficiaryItem b : beneficiaries) {
+        for (BeneficiaryItem b : requestedBeneficiaries) {
             String bType = b.type() != null ? b.type().trim().toUpperCase() : "SELF";
             String bName = b.name() != null ? b.name().trim() : "Client";
             boolean isSelf = "SELF".equalsIgnoreCase(bType) || bName.equalsIgnoreCase("moi") || bName.equalsIgnoreCase("moi-même");
@@ -178,7 +207,7 @@ public class QueueEngineServiceImpl implements QueueEngineService {
         }
 
         List<Ticket> createdTickets = new ArrayList<>();
-        for (BeneficiaryItem b : beneficiaries) {
+        for (BeneficiaryItem b : requestedBeneficiaries) {
             Ticket ticket = new Ticket();
             ticket.setSalon(salon);
             ticket.setUser(currentUser);
@@ -213,7 +242,7 @@ public class QueueEngineServiceImpl implements QueueEngineService {
             currentPeopleAhead++;
         }
 
-        recalculateQueue(salon.getId());
+        recalculateQueueLocked(salon);
         LOG.info(
             "🎟️ {} ticket(s) réservé(s) pour le salon {} (IDs: {})",
             createdTickets.size(),
@@ -333,9 +362,8 @@ public class QueueEngineServiceImpl implements QueueEngineService {
 
     @Override
     public TicketDTO callNextTicket(Long ticketId) {
-        Ticket ticket = ticketRepository
-            .findOneWithToOneRelationships(ticketId)
-            .orElseThrow(() -> new IllegalArgumentException("Ticket introuvable ID : " + ticketId));
+        LockedTicket lockedTicket = lockQueueAndLoadTicket(ticketId);
+        Ticket ticket = lockedTicket.ticket();
 
         ticket.setStatus(TicketStatus.YOUR_TURN);
         ticket.setPeopleAhead(0);
@@ -363,7 +391,7 @@ public class QueueEngineServiceImpl implements QueueEngineService {
             );
         }
 
-        recalculateQueue(ticket.getSalon().getId());
+        recalculateQueueLocked(lockedTicket.salon());
         TicketDTO dto = toDtoWithQueueState(updated);
         realtimeEventService.broadcast("TICKET_UPDATED", dto);
         return dto;
@@ -371,9 +399,8 @@ public class QueueEngineServiceImpl implements QueueEngineService {
 
     @Override
     public TicketDTO serveTicket(Long ticketId) {
-        Ticket ticket = ticketRepository
-            .findOneWithToOneRelationships(ticketId)
-            .orElseThrow(() -> new IllegalArgumentException("Ticket introuvable ID : " + ticketId));
+        LockedTicket lockedTicket = lockQueueAndLoadTicket(ticketId);
+        Ticket ticket = lockedTicket.ticket();
 
         ticket.setStatus(TicketStatus.SERVED);
         ticket.setCategory(TicketCategory.HISTORY);
@@ -381,7 +408,7 @@ public class QueueEngineServiceImpl implements QueueEngineService {
         ticket.setLastModifiedDate(Instant.now());
 
         Ticket updated = ticketRepository.save(ticket);
-        recalculateQueue(ticket.getSalon().getId());
+        recalculateQueueLocked(lockedTicket.salon());
         TicketDTO dto = toDtoWithQueueState(updated);
         realtimeEventService.broadcast("TICKET_UPDATED", dto);
         return dto;
@@ -389,9 +416,8 @@ public class QueueEngineServiceImpl implements QueueEngineService {
 
     @Override
     public TicketDTO cancelTicket(Long ticketId) {
-        Ticket ticket = ticketRepository
-            .findOneWithToOneRelationships(ticketId)
-            .orElseThrow(() -> new IllegalArgumentException("Ticket introuvable ID : " + ticketId));
+        LockedTicket lockedTicket = lockQueueAndLoadTicket(ticketId);
+        Ticket ticket = lockedTicket.ticket();
 
         ticket.setStatus(TicketStatus.CANCELLED);
         ticket.setCategory(TicketCategory.HISTORY);
@@ -435,7 +461,7 @@ public class QueueEngineServiceImpl implements QueueEngineService {
             }
         }
 
-        recalculateQueue(ticket.getSalon().getId());
+        recalculateQueueLocked(lockedTicket.salon());
         TicketDTO dto = toDtoWithQueueState(updated);
         realtimeEventService.broadcast("TICKET_UPDATED", dto);
         return dto;
@@ -443,12 +469,16 @@ public class QueueEngineServiceImpl implements QueueEngineService {
 
     @Override
     public void recalculateQueue(Long salonId) {
-        Salon salon = salonRepository.findById(salonId).orElse(null);
+        Salon salon = lockSalonForQueueMutation(salonId);
+        recalculateQueueLocked(salon);
+    }
+
+    private void recalculateQueueLocked(Salon salon) {
         if (salon == null) return;
 
-        List<Ticket> activeTickets = ticketRepository.findBySalonIdAndStatusInOrderByTicketNumberAsc(
-            salonId,
-            List.of(TicketStatus.YOUR_TURN, TicketStatus.WAITING)
+        List<Ticket> activeTickets = ticketRepository.findBySalonIdAndStatusInOrderByTicketNumberAscForUpdate(
+            salon.getId(),
+            ACTIVE_QUEUE_STATUSES
         );
 
         int pos = 0;

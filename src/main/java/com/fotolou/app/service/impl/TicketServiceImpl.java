@@ -3,11 +3,15 @@ package com.fotolou.app.service.impl;
 import com.fotolou.app.domain.Ticket;
 import com.fotolou.app.domain.User;
 import com.fotolou.app.domain.enumeration.TicketOwnerType;
+import com.fotolou.app.repository.SalonRepository;
 import com.fotolou.app.repository.TicketRepository;
 import com.fotolou.app.service.TicketService;
 import com.fotolou.app.service.UserService;
 import com.fotolou.app.service.dto.TicketDTO;
 import com.fotolou.app.service.mapper.TicketMapper;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
@@ -29,19 +33,23 @@ public class TicketServiceImpl implements TicketService {
     private final TicketRepository ticketRepository;
     private final TicketMapper ticketMapper;
     private final UserService userService;
+    private final SalonRepository salonRepository;
 
-    public TicketServiceImpl(TicketRepository ticketRepository, TicketMapper ticketMapper, UserService userService) {
+    public TicketServiceImpl(
+        TicketRepository ticketRepository,
+        TicketMapper ticketMapper,
+        UserService userService,
+        SalonRepository salonRepository
+    ) {
         this.ticketRepository = ticketRepository;
         this.ticketMapper = ticketMapper;
         this.userService = userService;
+        this.salonRepository = salonRepository;
     }
 
     @Override
     public TicketDTO save(TicketDTO ticketDTO) {
         LOG.debug("Request to save Ticket : {}", ticketDTO);
-        if (ticketDTO.getTicketNumber() == null) {
-            ticketDTO.setTicketNumber((int) ticketRepository.count() + 1);
-        }
         if (ticketDTO.getOwnerType() == null) {
             ticketDTO.setOwnerType(com.fotolou.app.domain.enumeration.TicketOwnerType.SELF);
         }
@@ -52,7 +60,10 @@ public class TicketServiceImpl implements TicketService {
             ticketDTO.setCategory(com.fotolou.app.domain.enumeration.TicketCategory.ACTIVE);
         }
         if (ticketDTO.getCreatedDate() == null) {
-            ticketDTO.setCreatedDate(java.time.Instant.now());
+            ticketDTO.setCreatedDate(Instant.now());
+        }
+        if (ticketDTO.getTicketNumber() == null) {
+            ticketDTO.setTicketNumber(nextTicketNumberForTicketDay(ticketDTO));
         }
         if (ticketDTO.getUser() == null) {
             com.fotolou.app.security.SecurityUtils.getCurrentUserLogin()
@@ -67,6 +78,22 @@ public class TicketServiceImpl implements TicketService {
         Ticket ticket = ticketMapper.toEntity(ticketDTO);
         ticket = ticketRepository.save(ticket);
         return ticketMapper.toDto(ticket);
+    }
+
+    private int nextTicketNumberForTicketDay(TicketDTO ticketDTO) {
+        Long salonId = ticketDTO.getSalon() != null ? ticketDTO.getSalon().getId() : null;
+        if (salonId == null) {
+            return (int) ticketRepository.count() + 1;
+        }
+
+        salonRepository.findByIdForUpdate(salonId).orElseThrow(() -> new IllegalArgumentException("Salon introuvable ID : " + salonId));
+
+        ZoneId ticketDayZone = ZoneId.systemDefault();
+        LocalDate ticketDay = LocalDate.ofInstant(ticketDTO.getCreatedDate(), ticketDayZone);
+        Instant startOfDay = ticketDay.atStartOfDay(ticketDayZone).toInstant();
+        Instant startOfNextDay = ticketDay.plusDays(1).atStartOfDay(ticketDayZone).toInstant();
+        Integer maxTicketNumber = ticketRepository.findMaxTicketNumberForSalonAndDay(salonId, startOfDay, startOfNextDay);
+        return Optional.ofNullable(maxTicketNumber).orElse(0) + 1;
     }
 
     @Override
