@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260909000200-1" author="codex">
+        <addColumn tableName="ticket">
+            <column name="owner_phone" type="varchar(30)"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="20260909000200-2" author="codex" dbms="postgresql">
+        <preConditions onFail="HALT">
+            <sqlCheck expectedResult="0">
+                select count(*)
+                from (
+                    select user_id, phone
+                    from relative
+                    where phone is not null
+                      and btrim(phone) &lt;&gt; ''
+                    group by user_id, phone
+                    having count(*) &gt; 1
+                ) duplicate_relative_phones
+            </sqlCheck>
+        </preConditions>
+        <sql>
+            create unique index if not exists ux_relative_user_phone
+                on relative (user_id, phone)
+                where phone is not null and btrim(phone) &lt;&gt; ''
+        </sql>
+    </changeSet>
+
+    <changeSet id="20260909000200-3" author="codex">
+        <createIndex indexName="idx_ticket_owner_phone" tableName="ticket">
+            <column name="owner_phone"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

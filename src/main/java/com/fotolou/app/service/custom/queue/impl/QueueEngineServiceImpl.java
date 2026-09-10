@@ -1,5 +1,6 @@
 package com.fotolou.app.service.custom.queue.impl;
 
+import com.fotolou.app.domain.Relative;
 import com.fotolou.app.domain.Salon;
 import com.fotolou.app.domain.Ticket;
 import com.fotolou.app.domain.User;
@@ -7,9 +8,11 @@ import com.fotolou.app.domain.enumeration.SalonStatus;
 import com.fotolou.app.domain.enumeration.TicketCategory;
 import com.fotolou.app.domain.enumeration.TicketOwnerType;
 import com.fotolou.app.domain.enumeration.TicketStatus;
+import com.fotolou.app.repository.RelativeRepository;
 import com.fotolou.app.repository.SalonRepository;
 import com.fotolou.app.repository.TicketRepository;
 import com.fotolou.app.service.UserService;
+import com.fotolou.app.service.custom.otp.OtpService;
 import com.fotolou.app.service.custom.push.BrowserPushService;
 import com.fotolou.app.service.custom.queue.QueueEngineService;
 import com.fotolou.app.service.custom.sms.SmsService;
@@ -44,11 +47,15 @@ public class QueueEngineServiceImpl implements QueueEngineService {
 
     private record LockedTicket(Ticket ticket, Salon salon) {}
 
+    private record TicketBeneficiary(String name, TicketOwnerType ownerType, Long relativeId, String phone) {}
+
     private final TicketRepository ticketRepository;
     private final SalonRepository salonRepository;
+    private final RelativeRepository relativeRepository;
     private final UserService userService;
     private final TicketMapper ticketMapper;
     private final SmsService smsService;
+    private final OtpService otpService;
     private final com.fotolou.app.service.custom.realtime.RealtimeEventService realtimeEventService;
     private final com.fotolou.app.repository.AppNotificationRepository appNotificationRepository;
     private final com.fotolou.app.service.mapper.AppNotificationMapper appNotificationMapper;
@@ -58,9 +65,11 @@ public class QueueEngineServiceImpl implements QueueEngineService {
     public QueueEngineServiceImpl(
         TicketRepository ticketRepository,
         SalonRepository salonRepository,
+        RelativeRepository relativeRepository,
         UserService userService,
         TicketMapper ticketMapper,
         SmsService smsService,
+        OtpService otpService,
         com.fotolou.app.service.custom.realtime.RealtimeEventService realtimeEventService,
         com.fotolou.app.repository.AppNotificationRepository appNotificationRepository,
         com.fotolou.app.service.mapper.AppNotificationMapper appNotificationMapper,
@@ -69,9 +78,11 @@ public class QueueEngineServiceImpl implements QueueEngineService {
     ) {
         this.ticketRepository = ticketRepository;
         this.salonRepository = salonRepository;
+        this.relativeRepository = relativeRepository;
         this.userService = userService;
         this.ticketMapper = ticketMapper;
         this.smsService = smsService;
+        this.otpService = otpService;
         this.realtimeEventService = realtimeEventService;
         this.appNotificationRepository = appNotificationRepository;
         this.appNotificationMapper = appNotificationMapper;
@@ -143,11 +154,9 @@ public class QueueEngineServiceImpl implements QueueEngineService {
 
         List<BeneficiaryItem> requestedBeneficiaries =
             beneficiaries == null || beneficiaries.isEmpty() ? List.of(new BeneficiaryItem("Moi", "SELF", null, null)) : beneficiaries;
+        List<TicketBeneficiary> ticketBeneficiaries = normalizeBeneficiaries(requestedBeneficiaries, currentUser);
 
-        List<Ticket> activeTickets = ticketRepository.findBySalonIdAndStatusInOrderByTicketNumberAscForUpdate(
-            salon.getId(),
-            ACTIVE_QUEUE_STATUSES
-        );
+        List<Ticket> activeTickets = ticketRepository.findBySalonIdAndStatusInQueueOrderForUpdate(salon.getId(), ACTIVE_QUEUE_STATUSES);
 
         ZoneId ticketDayZone = ZoneId.systemDefault();
         LocalDate ticketDay = LocalDate.now(ticketDayZone);
@@ -160,8 +169,8 @@ public class QueueEngineServiceImpl implements QueueEngineService {
         int currentPeopleAhead = activeTickets.size();
         // 1. Empêcher les doublons au sein de la demande elle-même
         Set<String> requestNames = new HashSet<>();
-        for (BeneficiaryItem b : requestedBeneficiaries) {
-            String bName = b.name() != null ? b.name().trim() : "Client";
+        for (TicketBeneficiary b : ticketBeneficiaries) {
+            String bName = b.name();
             if (!requestNames.add(bName.toLowerCase())) {
                 throw new IllegalArgumentException(
                     "Impossible de réserver plusieurs tickets pour la même personne ('" + bName + "') dans la même file."
@@ -170,9 +179,7 @@ public class QueueEngineServiceImpl implements QueueEngineService {
         }
 
         // 2. Empêcher un utilisateur de prendre deux tickets pour lui-même dans la file de ce salon
-        boolean requestingSelf = requestedBeneficiaries
-            .stream()
-            .anyMatch(b -> "SELF".equalsIgnoreCase(b.type()) || (b.name() != null && b.name().toLowerCase().startsWith("moi")));
+        boolean requestingSelf = ticketBeneficiaries.stream().anyMatch(b -> b.ownerType() == TicketOwnerType.SELF);
         if (requestingSelf && currentUser != null) {
             boolean alreadyInQueueSelf = activeTickets
                 .stream()
@@ -206,21 +213,31 @@ public class QueueEngineServiceImpl implements QueueEngineService {
             }
         }
 
+        for (TicketBeneficiary b : ticketBeneficiaries) {
+            if (b.ownerType() == TicketOwnerType.SELF || b.phone() == null) {
+                continue;
+            }
+
+            boolean phoneAlreadyActive = activeTickets
+                .stream()
+                .anyMatch(
+                    t -> samePhone(b.phone(), t.getOwnerPhone()) || (t.getUser() != null && samePhone(b.phone(), t.getUser().getLogin()))
+                );
+            if (phoneAlreadyActive) {
+                throw new IllegalStateException("Ce numero a deja un ticket actif dans la file de ce salon.");
+            }
+        }
+
         List<Ticket> createdTickets = new ArrayList<>();
-        for (BeneficiaryItem b : requestedBeneficiaries) {
+        for (TicketBeneficiary b : ticketBeneficiaries) {
             Ticket ticket = new Ticket();
             ticket.setSalon(salon);
             ticket.setUser(currentUser);
             ticket.setTicketNumber(nextNumber++);
 
-            TicketOwnerType ownerType = TicketOwnerType.SELF;
-            if ("RELATIVE".equalsIgnoreCase(b.type())) {
-                ownerType = TicketOwnerType.RELATIVE;
-            } else if ("CUSTOM".equalsIgnoreCase(b.type())) {
-                ownerType = TicketOwnerType.CUSTOM;
-            }
-            ticket.setOwnerType(ownerType);
-            ticket.setOwnerName(resolveOwnerName(ownerType, b.name(), currentUser));
+            ticket.setOwnerType(b.ownerType());
+            ticket.setOwnerName(b.name());
+            ticket.setOwnerPhone(b.phone());
             ticket.setCategory(TicketCategory.ACTIVE);
             ticket.setItemCount(1);
             ticket.setCreatedDate(Instant.now());
@@ -290,6 +307,7 @@ public class QueueEngineServiceImpl implements QueueEngineService {
                         "/client/tickets"
                     );
                 }
+                sendBeneficiarySmsConfirmation(t, salon, currentUser);
             }
         }
 
@@ -340,6 +358,7 @@ public class QueueEngineServiceImpl implements QueueEngineService {
             try {
                 Salon salon = salonRepository.findById(salonId).orElse(null);
                 String salonName = salon != null ? salon.getName() : "votre salon";
+                String normalizedClientPhone = normalizePhoneForCompare(clientPhone);
                 String msg = String.format(
                     "Fotolou : Votre ticket #%d chez %s est validé ! %d personne(s) devant vous (~%d min). Suivez votre tour en direct.",
                     created.getTicketNumber(),
@@ -347,7 +366,7 @@ public class QueueEngineServiceImpl implements QueueEngineService {
                     created.getPeopleAhead(),
                     created.getEstimatedWaitMinutes()
                 );
-                smsService.sendSms(clientPhone.trim(), msg);
+                smsService.sendSms(normalizedClientPhone != null ? normalizedClientPhone : clientPhone.trim(), msg);
             } catch (Exception e) {
                 LOG.warn("Impossible d'envoyer le SMS au client direct {}: {}", clientPhone, e.getMessage());
             }
@@ -372,11 +391,13 @@ public class QueueEngineServiceImpl implements QueueEngineService {
 
         Ticket updated = ticketRepository.save(ticket);
 
-        if (ticket.getUser() != null && ticket.getUser().getLogin() != null) {
-            String phone = ticket.getUser().getLogin();
-            String salonName = ticket.getSalon() != null ? ticket.getSalon().getName() : "votre salon";
-            smsService.sendTicketYourTurnAlert(phone, salonName, ticket.getTicketNumber());
+        String salonName = ticket.getSalon() != null ? ticket.getSalon().getName() : "votre salon";
+        String smsPhone = ticketSmsPhone(ticket);
+        if (smsPhone != null) {
+            smsService.sendTicketYourTurnAlert(smsPhone, salonName, ticket.getTicketNumber());
+        }
 
+        if (ticket.getUser() != null) {
             sendInAppNotification(
                 ticket.getUser(),
                 com.fotolou.app.domain.enumeration.RecipientRole.CLIENT,
@@ -476,10 +497,7 @@ public class QueueEngineServiceImpl implements QueueEngineService {
     private void recalculateQueueLocked(Salon salon) {
         if (salon == null) return;
 
-        List<Ticket> activeTickets = ticketRepository.findBySalonIdAndStatusInOrderByTicketNumberAscForUpdate(
-            salon.getId(),
-            ACTIVE_QUEUE_STATUSES
-        );
+        List<Ticket> activeTickets = ticketRepository.findBySalonIdAndStatusInQueueOrderForUpdate(salon.getId(), ACTIVE_QUEUE_STATUSES);
 
         int pos = 0;
         for (Ticket t : activeTickets) {
@@ -522,12 +540,13 @@ public class QueueEngineServiceImpl implements QueueEngineService {
     }
 
     private void notifyTicketIsReady(Ticket ticket, Salon salon) {
-        if (ticket.getUser() == null) {
-            return;
+        String smsPhone = ticketSmsPhone(ticket);
+        if (smsPhone != null) {
+            smsService.sendTicketYourTurnAlert(smsPhone, salon.getName(), ticket.getTicketNumber());
         }
 
-        if (ticket.getUser().getLogin() != null) {
-            smsService.sendTicketYourTurnAlert(ticket.getUser().getLogin(), salon.getName(), ticket.getTicketNumber());
+        if (ticket.getUser() == null) {
+            return;
         }
 
         sendInAppNotification(
@@ -604,7 +623,7 @@ public class QueueEngineServiceImpl implements QueueEngineService {
     @Override
     @Transactional(readOnly = true)
     public List<TicketDTO> getSalonQueue(Long salonId) {
-        List<Ticket> activeTickets = ticketRepository.findBySalonIdAndCategoryOrderByTicketNumberAsc(salonId, TicketCategory.ACTIVE);
+        List<Ticket> activeTickets = ticketRepository.findBySalonIdAndCategoryOrderByCreatedDateAscIdAsc(salonId, TicketCategory.ACTIVE);
         return toDtosWithQueueState(activeTickets);
     }
 
@@ -644,6 +663,112 @@ public class QueueEngineServiceImpl implements QueueEngineService {
         return requestedName != null && !requestedName.isBlank() ? requestedName.trim() : "Client";
     }
 
+    private List<TicketBeneficiary> normalizeBeneficiaries(List<BeneficiaryItem> items, User currentUser) {
+        String currentUserPhone = normalizePhoneForCompare(currentUser != null ? currentUser.getLogin() : null);
+        Set<String> requestedPhones = new HashSet<>();
+        List<TicketBeneficiary> normalized = new ArrayList<>();
+
+        for (BeneficiaryItem item : items) {
+            TicketOwnerType ownerType = resolveOwnerType(item.type());
+            String requestedName = item.name();
+            String requestedPhone = normalizeOptionalPhone(item.phone());
+            Long relativeId = item.relativeId();
+
+            if (ownerType == TicketOwnerType.RELATIVE && currentUser != null && relativeId != null) {
+                Relative relative = relativeRepository
+                    .findByIdAndUserLogin(relativeId, currentUser.getLogin())
+                    .orElseThrow(() -> new IllegalArgumentException("Ce proche est introuvable ou ne vous appartient pas."));
+                if (requestedName == null || requestedName.isBlank()) {
+                    requestedName = relative.getName();
+                }
+                if (requestedPhone == null) {
+                    requestedPhone = normalizeOptionalPhone(relative.getPhone());
+                }
+            }
+
+            if (ownerType == TicketOwnerType.SELF) {
+                requestedPhone = currentUserPhone;
+            } else if (requestedPhone != null) {
+                if (currentUserPhone != null && requestedPhone.equals(currentUserPhone)) {
+                    throw new IllegalArgumentException("Vous ne pouvez pas utiliser votre propre numero pour une autre personne.");
+                }
+                if (!requestedPhones.add(requestedPhone)) {
+                    throw new IllegalArgumentException(
+                        "Le meme numero de telephone ne peut pas etre utilise pour plusieurs beneficiaires."
+                    );
+                }
+            }
+
+            String ownerName = resolveOwnerName(ownerType, requestedName, currentUser);
+            normalized.add(new TicketBeneficiary(ownerName, ownerType, relativeId, requestedPhone));
+        }
+
+        return normalized;
+    }
+
+    private TicketOwnerType resolveOwnerType(String type) {
+        if ("RELATIVE".equalsIgnoreCase(type)) {
+            return TicketOwnerType.RELATIVE;
+        }
+        if ("CUSTOM".equalsIgnoreCase(type)) {
+            return TicketOwnerType.CUSTOM;
+        }
+        return TicketOwnerType.SELF;
+    }
+
+    private String normalizeOptionalPhone(String rawPhone) {
+        String normalized = otpService.normalizePhoneNumber(rawPhone);
+        if (normalized == null || normalized.isBlank()) {
+            return null;
+        }
+
+        int digitsCount = normalized.replaceAll("[^0-9]", "").length();
+        if (digitsCount < 9) {
+            throw new IllegalArgumentException("Numero de telephone invalide.");
+        }
+
+        return normalized;
+    }
+
+    private String normalizePhoneForCompare(String rawPhone) {
+        String normalized = otpService.normalizePhoneNumber(rawPhone);
+        return normalized == null || normalized.isBlank() ? null : normalized;
+    }
+
+    private boolean samePhone(String normalizedPhone, String existingPhone) {
+        String normalizedExistingPhone = normalizePhoneForCompare(existingPhone);
+        return normalizedPhone != null && normalizedPhone.equals(normalizedExistingPhone);
+    }
+
+    private String ticketSmsPhone(Ticket ticket) {
+        String ownerPhone = normalizePhoneForCompare(ticket.getOwnerPhone());
+        if (ownerPhone != null) {
+            return ownerPhone;
+        }
+        return ticket.getUser() != null ? normalizePhoneForCompare(ticket.getUser().getLogin()) : null;
+    }
+
+    private void sendBeneficiarySmsConfirmation(Ticket ticket, Salon salon, User currentUser) {
+        String phone = normalizePhoneForCompare(ticket.getOwnerPhone());
+        if (phone == null || currentUser == null || samePhone(phone, currentUser.getLogin())) {
+            return;
+        }
+
+        try {
+            String msg = String.format(
+                "Fotolou : Votre ticket #%d chez %s est valide pour %s. %d personne(s) devant vous (~%d min).",
+                ticket.getTicketNumber(),
+                salon.getName(),
+                ticket.getOwnerName(),
+                ticket.getPeopleAhead(),
+                ticket.getEstimatedWaitMinutes()
+            );
+            smsService.sendSms(phone, msg);
+        } catch (Exception e) {
+            LOG.warn("Impossible d'envoyer le SMS au beneficiaire {}: {}", phone, e.getMessage());
+        }
+    }
+
     private void applySelfOwnerName(TicketDTO dto, Ticket ticket) {
         if (dto == null || ticket == null || ticket.getOwnerType() != TicketOwnerType.SELF || ticket.getUser() == null) {
             return;
@@ -667,7 +792,7 @@ public class QueueEngineServiceImpl implements QueueEngineService {
 
     private Integer findCurrentTicketNumber(Long salonId) {
         return ticketRepository
-            .findBySalonIdAndStatusInOrderByTicketNumberAsc(salonId, List.of(TicketStatus.YOUR_TURN, TicketStatus.WAITING))
+            .findBySalonIdAndStatusInOrderByCreatedDateAscIdAsc(salonId, List.of(TicketStatus.YOUR_TURN, TicketStatus.WAITING))
             .stream()
             .findFirst()
             .map(Ticket::getTicketNumber)

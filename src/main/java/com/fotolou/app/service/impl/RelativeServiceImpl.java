@@ -6,13 +6,16 @@ import com.fotolou.app.repository.RelativeRepository;
 import com.fotolou.app.repository.UserRepository;
 import com.fotolou.app.service.RelativeService;
 import com.fotolou.app.service.UserService;
+import com.fotolou.app.service.custom.otp.OtpService;
 import com.fotolou.app.service.dto.RelativeDTO;
 import com.fotolou.app.service.mapper.RelativeMapper;
 import com.fotolou.app.web.rest.errors.BadRequestAlertException;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -31,17 +34,20 @@ public class RelativeServiceImpl implements RelativeService {
     private final RelativeMapper relativeMapper;
     private final UserService userService;
     private final UserRepository userRepository;
+    private final OtpService otpService;
 
     public RelativeServiceImpl(
         RelativeRepository relativeRepository,
         RelativeMapper relativeMapper,
         UserService userService,
-        UserRepository userRepository
+        UserRepository userRepository,
+        OtpService otpService
     ) {
         this.relativeRepository = relativeRepository;
         this.relativeMapper = relativeMapper;
         this.userService = userService;
         this.userRepository = userRepository;
+        this.otpService = otpService;
     }
 
     @Override
@@ -74,10 +80,11 @@ public class RelativeServiceImpl implements RelativeService {
 
         Relative relative = relativeMapper.toEntity(relativeDTO);
         relative.setUser(user);
+        sanitizeRelativePhoneForUser(relative, user.getLogin(), null);
         if (relative.getCreatedDate() == null) {
             relative.setCreatedDate(Instant.now());
         }
-        relative = relativeRepository.save(relative);
+        relative = saveRelativeWithPhoneGuard(relative);
         return relativeMapper.toDto(relative);
     }
 
@@ -99,7 +106,8 @@ public class RelativeServiceImpl implements RelativeService {
         existing.setName(relativeDTO.getName());
         existing.setRelation(relativeDTO.getRelation());
         existing.setPhone(relativeDTO.getPhone());
-        existing = relativeRepository.save(existing);
+        sanitizeRelativePhoneForUser(existing, login, existing.getId());
+        existing = saveRelativeWithPhoneGuard(existing);
         return relativeMapper.toDto(existing);
     }
 
@@ -132,7 +140,8 @@ public class RelativeServiceImpl implements RelativeService {
                 if (relativeDTO.getPhone() != null) {
                     existing.setPhone(relativeDTO.getPhone());
                 }
-                return relativeRepository.save(existing);
+                sanitizeRelativePhoneForUser(existing, login, existing.getId());
+                return saveRelativeWithPhoneGuard(existing);
             })
             .map(relativeMapper::toDto);
     }
@@ -190,5 +199,67 @@ public class RelativeServiceImpl implements RelativeService {
     @Transactional(readOnly = true)
     public boolean existsByIdAndUser(Long id, String login) {
         return relativeRepository.existsByIdAndUserLogin(id, login);
+    }
+
+    private void sanitizeRelativePhoneForUser(Relative relative, String login, Long excludedRelativeId) {
+        String normalizedPhone = normalizeOptionalPhone(relative.getPhone());
+        relative.setPhone(normalizedPhone);
+
+        if (normalizedPhone == null) {
+            return;
+        }
+
+        String accountPhone = normalizePhoneForCompare(login);
+        if (accountPhone != null && normalizedPhone.equals(accountPhone)) {
+            throw new BadRequestAlertException("Vous ne pouvez pas ajouter votre propre numero comme proche.", "relative", "ownphone");
+        }
+
+        boolean alreadyUsedByAnotherRelative = relativeRepository
+            .findByUserLogin(login)
+            .stream()
+            .anyMatch(
+                existing ->
+                    !Objects.equals(existing.getId(), excludedRelativeId) &&
+                    normalizedPhone.equals(normalizePhoneForCompare(existing.getPhone()))
+            );
+
+        if (alreadyUsedByAnotherRelative) {
+            throw new BadRequestAlertException(
+                "Ce numero de telephone est deja utilise par un autre proche.",
+                "relative",
+                "phonealreadyused"
+            );
+        }
+    }
+
+    private String normalizeOptionalPhone(String rawPhone) {
+        String normalized = otpService.normalizePhoneNumber(rawPhone);
+        if (normalized == null || normalized.isBlank()) {
+            return null;
+        }
+
+        int digitsCount = normalized.replaceAll("[^0-9]", "").length();
+        if (digitsCount < 9) {
+            throw new BadRequestAlertException("Numero de telephone invalide.", "relative", "invalidphone");
+        }
+
+        return normalized;
+    }
+
+    private String normalizePhoneForCompare(String rawPhone) {
+        String normalized = otpService.normalizePhoneNumber(rawPhone);
+        return normalized == null || normalized.isBlank() ? null : normalized;
+    }
+
+    private Relative saveRelativeWithPhoneGuard(Relative relative) {
+        try {
+            return relativeRepository.saveAndFlush(relative);
+        } catch (DataIntegrityViolationException e) {
+            throw new BadRequestAlertException(
+                "Ce numero de telephone est deja utilise par un autre proche.",
+                "relative",
+                "phonealreadyused"
+            );
+        }
     }
 }

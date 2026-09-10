@@ -174,7 +174,7 @@ public class TicketServiceImpl implements TicketService {
 
     private Integer findCurrentTicketNumber(Long salonId) {
         return ticketRepository
-            .findBySalonIdAndStatusInOrderByTicketNumberAsc(
+            .findBySalonIdAndStatusInOrderByCreatedDateAscIdAsc(
                 salonId,
                 List.of(com.fotolou.app.domain.enumeration.TicketStatus.YOUR_TURN, com.fotolou.app.domain.enumeration.TicketStatus.WAITING)
             )

@@ -41,5 +41,7 @@
     <include file="config/liquibase/changelog/20260908000001_added_entity_constraints_PushSubscription.xml" relativeToChangelogFile="false"/>
     <!-- jhipster-needle-liquibase-add-constraints-changelog - JHipster will add liquibase constraints changelogs here -->
     <include file="config/liquibase/changelog/20260909000100_queue_ticket_daily_number_guard.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260909000200_ticket_owner_phone_and_relative_phone_guard.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260910000100_queue_created_order_indexes.xml" relativeToChangelogFile="false"/>
     <!-- jhipster-needle-liquibase-add-incremental-changelog - JHipster will add incremental liquibase changelogs here -->
 </databaseChangeLog>

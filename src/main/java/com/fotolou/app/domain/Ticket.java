@@ -37,6 +37,10 @@ public class Ticket implements Serializable {
     @Column(name = "owner_name", length = 100, nullable = false)
     private String ownerName;
 
+    @Size(max = 30)
+    @Column(name = "owner_phone", length = 30)
+    private String ownerPhone;
+
     @NotNull
     @Enumerated(EnumType.STRING)
     @Column(name = "owner_type", nullable = false)
@@ -124,6 +128,19 @@ public class Ticket implements Serializable {
 
     public void setOwnerName(String ownerName) {
         this.ownerName = ownerName;
+    }
+
+    public String getOwnerPhone() {
+        return this.ownerPhone;
+    }
+
+    public Ticket ownerPhone(String ownerPhone) {
+        this.setOwnerPhone(ownerPhone);
+        return this;
+    }
+
+    public void setOwnerPhone(String ownerPhone) {
+        this.ownerPhone = ownerPhone;
     }
 
     public TicketOwnerType getOwnerType() {
@@ -308,6 +325,7 @@ public class Ticket implements Serializable {
             "id=" + getId() +
             ", ticketNumber=" + getTicketNumber() +
             ", ownerName='" + getOwnerName() + "'" +
+            ", ownerPhone='" + getOwnerPhone() + "'" +
             ", ownerType='" + getOwnerType() + "'" +
             ", status='" + getStatus() + "'" +
             ", category='" + getCategory() + "'" +

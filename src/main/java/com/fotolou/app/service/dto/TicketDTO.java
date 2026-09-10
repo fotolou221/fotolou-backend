@@ -28,6 +28,9 @@ public class TicketDTO implements Serializable {
     @Size(max = 100)
     private String ownerName;
 
+    @Size(max = 30)
+    private String ownerPhone;
+
     private TicketOwnerType ownerType = TicketOwnerType.SELF;
 
     private TicketStatus status = TicketStatus.WAITING;
@@ -86,6 +89,14 @@ public class TicketDTO implements Serializable {
 
     public void setOwnerName(String ownerName) {
         this.ownerName = ownerName;
+    }
+
+    public String getOwnerPhone() {
+        return ownerPhone;
+    }
+
+    public void setOwnerPhone(String ownerPhone) {
+        this.ownerPhone = ownerPhone;
     }
 
     public TicketOwnerType getOwnerType() {
@@ -213,6 +224,7 @@ public class TicketDTO implements Serializable {
             ", ticketNumber=" + getTicketNumber() +
             ", currentTicketNumber=" + getCurrentTicketNumber() +
             ", ownerName='" + getOwnerName() + "'" +
+            ", ownerPhone='" + getOwnerPhone() + "'" +
             ", ownerType='" + getOwnerType() + "'" +
             ", status='" + getStatus() + "'" +
             ", category='" + getCategory() + "'" +

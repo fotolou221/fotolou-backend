@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260910000100-1" author="codex">
+        <createIndex indexName="idx_ticket_salon_status_created" tableName="ticket">
+            <column name="salon_id"/>
+            <column name="status"/>
+            <column name="created_date"/>
+            <column name="id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="20260910000100-2" author="codex">
+        <createIndex indexName="idx_ticket_salon_category_created" tableName="ticket">
+            <column name="salon_id"/>
+            <column name="category"/>
+            <column name="created_date"/>
+            <column name="id"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- L'ordre de la file ne se base plus sur ticket_number : l'index status+number devient inutile. -->
+    <changeSet id="20260910000100-3" author="codex">
+        <preConditions onFail="MARK_RAN">
+            <indexExists indexName="idx_ticket_salon_status_number" tableName="ticket"/>
+        </preConditions>
+        <dropIndex indexName="idx_ticket_salon_status_number" tableName="ticket"/>
+    </changeSet>
+</databaseChangeLog>

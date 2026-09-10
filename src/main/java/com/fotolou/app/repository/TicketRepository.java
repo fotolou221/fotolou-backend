@@ -18,22 +18,23 @@ public interface TicketRepository extends JpaRepository<Ticket, Long>, JpaSpecif
     @Query("select ticket from Ticket ticket where ticket.user.login = ?#{authentication.name} order by ticket.createdDate desc")
     List<Ticket> findByUserIsCurrentUser();
 
-    List<Ticket> findBySalonIdAndCategoryOrderByTicketNumberAsc(Long salonId, com.fotolou.app.domain.enumeration.TicketCategory category);
+    List<Ticket> findBySalonIdAndCategoryOrderByCreatedDateAscIdAsc(
+        Long salonId,
+        com.fotolou.app.domain.enumeration.TicketCategory category
+    );
 
     List<Ticket> findBySalonIdOrderByCreatedDateDesc(Long salonId);
 
-    List<Ticket> findBySalonIdOrderByTicketNumberAsc(Long salonId);
-
-    List<Ticket> findBySalonIdAndStatusInOrderByTicketNumberAsc(
+    List<Ticket> findBySalonIdAndStatusInOrderByCreatedDateAscIdAsc(
         Long salonId,
         List<com.fotolou.app.domain.enumeration.TicketStatus> statuses
     );
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query(
-        "select ticket from Ticket ticket where ticket.salon.id = :salonId and ticket.status in :statuses order by ticket.ticketNumber asc"
+        "select ticket from Ticket ticket where ticket.salon.id = :salonId and ticket.status in :statuses order by ticket.createdDate asc, ticket.id asc"
     )
-    List<Ticket> findBySalonIdAndStatusInOrderByTicketNumberAscForUpdate(
+    List<Ticket> findBySalonIdAndStatusInQueueOrderForUpdate(
         @Param("salonId") Long salonId,
         @Param("statuses") List<com.fotolou.app.domain.enumeration.TicketStatus> statuses
     );
