@@ -19,9 +19,9 @@
 
     <changeSet id="20260912000000-2" author="fotolou">
         <validCheckSum>ANY</validCheckSum>
-        <comment>Nettoyage complet de la base de données et conservation uniquement du super administrateur</comment>
+        <comment>Nettoyage complet de la base de données et conservation uniquement du super administrateur unique</comment>
         <sql>
-            <!-- 1. Suppression des données métier dépendantes -->
+            <!-- 1. Suppression de toutes les données métier dépendantes -->
             DELETE FROM ticket;
             DELETE FROM relative;
             DELETE FROM favorite_salon;
@@ -36,26 +36,42 @@
             DELETE FROM push_subscription;
             DELETE FROM otp_verification;
 
-            <!-- 2. Suppression de toutes les associations de rôles sauf le super admin -->
-            DELETE FROM jhi_user_authority
-            WHERE user_id NOT IN (
-                SELECT id FROM jhi_user WHERE login = 'admin@fotolou.sn' OR login = 'admin'
-            );
+            <!-- 2. Suppression de toutes les associations de rôles -->
+            DELETE FROM jhi_user_authority;
 
-            <!-- 3. Suppression de tous les utilisateurs sauf le super admin -->
-            DELETE FROM jhi_user
-            WHERE login != 'admin@fotolou.sn' AND login != 'admin';
+            <!-- 3. Suppression de tous les utilisateurs sauf les admins potentiels -->
+            DELETE FROM jhi_user WHERE login NOT IN ('admin@fotolou.sn', 'admin');
 
-            <!-- 4. Mise à jour du super admin avec son email et son numéro unique de support 778627052 -->
+            <!-- 4. S'assurer qu'il ne reste qu'UN SEUL admin (supprimer 'admin' si 'admin@fotolou.sn' existe déjà) -->
+            DELETE FROM jhi_user WHERE login = 'admin' AND EXISTS (SELECT 1 FROM jhi_user WHERE login = 'admin@fotolou.sn');
+
+            <!-- 5. Si seul 'admin' existe, le renommer en 'admin@fotolou.sn' -->
+            UPDATE jhi_user SET login = 'admin@fotolou.sn' WHERE login = 'admin';
+
+            <!-- 6. Créer le super admin s'il n'existait pas du tout -->
+            INSERT INTO jhi_user (id, login, password_hash, first_name, last_name, email, phone, activated, lang_key, created_by, created_date)
+            SELECT 1051, 'admin@fotolou.sn', '$2a$10$hVxUkycZbtw.Vc7WTaRWp.mtEEu7O0vr.QTpYRluFs0t/cyyyrUyW', 'Super', 'Admin', 'fotolou3@gmail.com', '+221778627052', true, 'fr', 'system', NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM jhi_user WHERE login = 'admin@fotolou.sn');
+
+            <!-- 7. Mise à jour de l'unique super admin avec ses coordonnées sans risque de doublon -->
             UPDATE jhi_user
             SET phone = '+221778627052',
                 email = 'fotolou3@gmail.com',
                 first_name = 'Super',
                 last_name = 'Admin',
                 activated = true
-            WHERE login = 'admin@fotolou.sn' OR login = 'admin';
+            WHERE login = 'admin@fotolou.sn';
 
-            <!-- 5. Mise à jour des paramètres plateforme avec les coordonnées de support -->
+            <!-- 8. Réassignation des rôles au super admin unique -->
+            INSERT INTO jhi_user_authority (user_id, authority_name)
+            SELECT u.id, a.name
+            FROM jhi_user u
+            CROSS JOIN jhi_authority a
+            WHERE u.login = 'admin@fotolou.sn'
+              AND a.name IN ('ROLE_ADMIN', 'ROLE_SUPER_ADMIN', 'ROLE_USER')
+            ON CONFLICT DO NOTHING;
+
+            <!-- 9. Mise à jour des coordonnées support dans platform_settings -->
             UPDATE platform_settings
             SET contact_phone = '+221 77 862 70 52',
                 contact_email = 'fotolou3@gmail.com';
