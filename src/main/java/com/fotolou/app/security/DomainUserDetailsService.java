@@ -34,18 +34,12 @@ public class DomainUserDetailsService implements UserDetailsService {
     public UserDetails loadUserByUsername(final String login) {
         LOG.debug("Authenticating {}", login);
 
-        if (new EmailValidator().isValid(login, null)) {
-            return userRepository
-                .findOneWithAuthoritiesByEmailIgnoreCase(login)
-                .map(user -> createSpringSecurityUser(login, user))
-                .orElseThrow(() -> new UsernameNotFoundException("User with email " + login + " was not found in the database"));
-        }
-
-        String lowercaseLogin = login.toLowerCase(Locale.ENGLISH);
+        String lowercaseLogin = login.trim().toLowerCase(Locale.ENGLISH);
         String digitsOnly = lowercaseLogin.replaceAll("[^0-9]", "");
 
         return userRepository
             .findOneWithAuthoritiesByLogin(lowercaseLogin)
+            .or(() -> userRepository.findOneWithAuthoritiesByEmailIgnoreCase(lowercaseLogin))
             .or(() -> userRepository.findOneWithAuthoritiesByPhone(lowercaseLogin))
             .or(() ->
                 digitsOnly.length() >= 9
@@ -57,7 +51,17 @@ public class DomainUserDetailsService implements UserDetailsService {
                     ? userRepository.findOneWithAuthoritiesByPhone(digitsOnly.substring(digitsOnly.length() - 9))
                     : Optional.empty()
             )
-            .map(user -> createSpringSecurityUser(lowercaseLogin, user))
+            .or(() ->
+                digitsOnly.length() >= 9
+                    ? userRepository.findOneWithAuthoritiesByLogin("+221" + digitsOnly.substring(digitsOnly.length() - 9))
+                    : Optional.empty()
+            )
+            .or(() ->
+                digitsOnly.length() >= 9
+                    ? userRepository.findOneWithAuthoritiesByLogin(digitsOnly.substring(digitsOnly.length() - 9))
+                    : Optional.empty()
+            )
+            .map(user -> createSpringSecurityUser(user.getLogin(), user))
             .orElseThrow(() -> new UsernameNotFoundException("User " + lowercaseLogin + " was not found in the database"));
     }
 
