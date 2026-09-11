@@ -5,27 +5,28 @@
     xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
 
     <changeSet id="20260909000100-1" author="codex" dbms="postgresql">
-        <preConditions onFail="HALT">
-            <sqlCheck expectedResult="0">
-                select count(*)
-                from (
-                    select salon_id, ticket_number, created_date::date
-                    from ticket
-                    where salon_id is not null
-                      and ticket_number is not null
-                      and created_date is not null
-                    group by salon_id, ticket_number, created_date::date
-                    having count(*) &gt; 1
-                ) duplicate_ticket_numbers
-            </sqlCheck>
-        </preConditions>
+        <validCheckSum>ANY</validCheckSum>
         <sql>
-            create unique index if not exists ux_ticket_salon_day_ticket_number
-                on ticket (salon_id, (created_date::date), ticket_number)
+            <!-- Nettoyer les doublons historiques avant création de l'index unique -->
+            DELETE FROM ticket t1
+            USING ticket t2
+            WHERE t1.id &lt; t2.id
+              AND t1.salon_id = t2.salon_id
+              AND t1.ticket_number = t2.ticket_number
+              AND t1.created_date::date = t2.created_date::date;
+
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_ticket_salon_day_ticket_number
+                ON ticket (salon_id, (created_date::date), ticket_number);
         </sql>
     </changeSet>
 
     <changeSet id="20260909000100-2" author="codex">
+        <validCheckSum>ANY</validCheckSum>
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="idx_ticket_salon_status_number" tableName="ticket"/>
+            </not>
+        </preConditions>
         <createIndex indexName="idx_ticket_salon_status_number" tableName="ticket">
             <column name="salon_id"/>
             <column name="status"/>

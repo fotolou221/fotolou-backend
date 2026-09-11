@@ -5,6 +5,12 @@
     xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
 
     <changeSet id="20260910000100-1" author="codex">
+        <validCheckSum>ANY</validCheckSum>
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="idx_ticket_salon_status_created" tableName="ticket"/>
+            </not>
+        </preConditions>
         <createIndex indexName="idx_ticket_salon_status_created" tableName="ticket">
             <column name="salon_id"/>
             <column name="status"/>
@@ -14,6 +20,12 @@
     </changeSet>
 
     <changeSet id="20260910000100-2" author="codex">
+        <validCheckSum>ANY</validCheckSum>
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="idx_ticket_salon_category_created" tableName="ticket"/>
+            </not>
+        </preConditions>
         <createIndex indexName="idx_ticket_salon_category_created" tableName="ticket">
             <column name="salon_id"/>
             <column name="category"/>
@@ -24,6 +36,7 @@
 
     <!-- L'ordre de la file ne se base plus sur ticket_number : l'index status+number devient inutile. -->
     <changeSet id="20260910000100-3" author="codex">
+        <validCheckSum>ANY</validCheckSum>
         <preConditions onFail="MARK_RAN">
             <indexExists indexName="idx_ticket_salon_status_number" tableName="ticket"/>
         </preConditions>

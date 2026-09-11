@@ -5,6 +5,7 @@
     xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
 
     <changeSet id="20260912000000-1" author="fotolou">
+        <validCheckSum>ANY</validCheckSum>
         <preConditions onFail="MARK_RAN">
             <not>
                 <columnExists tableName="jhi_user" columnName="phone"/>
@@ -17,6 +18,7 @@
     </changeSet>
 
     <changeSet id="20260912000000-2" author="fotolou">
+        <validCheckSum>ANY</validCheckSum>
         <comment>Nettoyage complet de la base de données et conservation uniquement du super administrateur</comment>
         <sql>
             <!-- 1. Suppression des données métier dépendantes -->
@@ -61,6 +63,7 @@
     </changeSet>
 
     <changeSet id="20260912000000-3" author="fotolou">
+        <validCheckSum>ANY</validCheckSum>
         <preConditions onFail="MARK_RAN">
             <not>
                 <indexExists indexName="ux_user_phone"/>

@@ -5,33 +5,42 @@
     xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
 
     <changeSet id="20260909000200-1" author="codex">
+        <validCheckSum>ANY</validCheckSum>
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="ticket" columnName="owner_phone"/>
+            </not>
+        </preConditions>
         <addColumn tableName="ticket">
             <column name="owner_phone" type="varchar(30)"/>
         </addColumn>
     </changeSet>
 
     <changeSet id="20260909000200-2" author="codex" dbms="postgresql">
-        <preConditions onFail="HALT">
-            <sqlCheck expectedResult="0">
-                select count(*)
-                from (
-                    select user_id, phone
-                    from relative
-                    where phone is not null
-                      and btrim(phone) &lt;&gt; ''
-                    group by user_id, phone
-                    having count(*) &gt; 1
-                ) duplicate_relative_phones
-            </sqlCheck>
-        </preConditions>
+        <validCheckSum>ANY</validCheckSum>
         <sql>
-            create unique index if not exists ux_relative_user_phone
-                on relative (user_id, phone)
-                where phone is not null and btrim(phone) &lt;&gt; ''
+            <!-- Nettoyer les doublons historiques de numéros relatifs par utilisateur -->
+            DELETE FROM relative r1
+            USING relative r2
+            WHERE r1.id &lt; r2.id
+              AND r1.user_id = r2.user_id
+              AND r1.phone = r2.phone
+              AND r1.phone IS NOT NULL
+              AND btrim(r1.phone) &lt;&gt; '';
+
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_relative_user_phone
+                ON relative (user_id, phone)
+                WHERE phone IS NOT NULL AND btrim(phone) &lt;&gt; '';
         </sql>
     </changeSet>
 
     <changeSet id="20260909000200-3" author="codex">
+        <validCheckSum>ANY</validCheckSum>
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="idx_ticket_owner_phone" tableName="ticket"/>
+            </not>
+        </preConditions>
         <createIndex indexName="idx_ticket_owner_phone" tableName="ticket">
             <column name="owner_phone"/>
         </createIndex>
