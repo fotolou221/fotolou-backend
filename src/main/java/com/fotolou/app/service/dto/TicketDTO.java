@@ -24,6 +24,8 @@ public class TicketDTO implements Serializable {
     @Min(value = 1)
     private Integer currentTicketNumber;
 
+    private Boolean currentTicketIsYesterday;
+
     @NotNull
     @Size(max = 100)
     private String ownerName;
@@ -81,6 +83,14 @@ public class TicketDTO implements Serializable {
 
     public void setCurrentTicketNumber(Integer currentTicketNumber) {
         this.currentTicketNumber = currentTicketNumber;
+    }
+
+    public Boolean getCurrentTicketIsYesterday() {
+        return currentTicketIsYesterday;
+    }
+
+    public void setCurrentTicketIsYesterday(Boolean currentTicketIsYesterday) {
+        this.currentTicketIsYesterday = currentTicketIsYesterday;
     }
 
     public String getOwnerName() {

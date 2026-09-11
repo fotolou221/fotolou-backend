@@ -71,7 +71,12 @@ public class RelativeResource {
             throw new BadRequestAlertException("Vous devez être connecté pour ajouter un proche", ENTITY_NAME, "unauthorized");
         }
 
-        RelativeDTO result = relativeService.saveForUser(relativeDTO, currentLogin);
+        RelativeDTO result;
+        try {
+            result = relativeService.saveForUser(relativeDTO, currentLogin);
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestAlertException(e.getMessage(), ENTITY_NAME, "badRequest");
+        }
 
         // Si un numéro est renseigné, envoyer une notification SMS au proche
         if (result.getPhone() != null && !result.getPhone().isBlank()) {
@@ -136,7 +141,11 @@ public class RelativeResource {
             throw new BadRequestAlertException("Ce proche est introuvable ou ne vous appartient pas", ENTITY_NAME, "notowned");
         }
 
-        relativeDTO = relativeService.updateForUser(relativeDTO, currentLogin);
+        try {
+            relativeDTO = relativeService.updateForUser(relativeDTO, currentLogin);
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestAlertException(e.getMessage(), ENTITY_NAME, "badRequest");
+        }
         return ResponseEntity.ok()
             .headers(HeaderUtil.createEntityUpdateAlert(applicationName, true, ENTITY_NAME, relativeDTO.getId().toString()))
             .body(relativeDTO);
@@ -186,7 +195,12 @@ public class RelativeResource {
             throw new BadRequestAlertException("Ce proche est introuvable ou ne vous appartient pas", ENTITY_NAME, "notowned");
         }
 
-        Optional<RelativeDTO> result = relativeService.partialUpdateForUser(relativeDTO, currentLogin);
+        Optional<RelativeDTO> result;
+        try {
+            result = relativeService.partialUpdateForUser(relativeDTO, currentLogin);
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestAlertException(e.getMessage(), ENTITY_NAME, "badRequest");
+        }
         return ResponseUtil.wrapOrNotFound(
             result,
             HeaderUtil.createEntityUpdateAlert(applicationName, true, ENTITY_NAME, relativeDTO.getId().toString())

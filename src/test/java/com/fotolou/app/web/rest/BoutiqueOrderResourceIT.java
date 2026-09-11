@@ -15,6 +15,7 @@ import com.fotolou.app.domain.enumeration.OrderStatus;
 import com.fotolou.app.domain.enumeration.OrderType;
 import com.fotolou.app.repository.BoutiqueOrderRepository;
 import com.fotolou.app.repository.UserRepository;
+import com.fotolou.app.security.AuthoritiesConstants;
 import com.fotolou.app.service.dto.BoutiqueOrderDTO;
 import com.fotolou.app.service.mapper.BoutiqueOrderMapper;
 import jakarta.persistence.EntityManager;
@@ -36,7 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @IntegrationTest
 @AutoConfigureMockMvc
-@WithMockUser
+@WithMockUser(authorities = AuthoritiesConstants.ADMIN)
 class BoutiqueOrderResourceIT {
 
     private static final String DEFAULT_ORDER_NUMBER = "AAAAAAAAAA";

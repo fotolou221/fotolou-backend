@@ -2,7 +2,9 @@ package com.fotolou.app.service.impl;
 
 import com.fotolou.app.domain.ProductCategory;
 import com.fotolou.app.repository.ProductCategoryRepository;
+import com.fotolou.app.repository.ProductRepository;
 import com.fotolou.app.service.ProductCategoryService;
+import com.fotolou.app.service.custom.realtime.RealtimeEventService;
 import com.fotolou.app.service.dto.ProductCategoryDTO;
 import com.fotolou.app.service.mapper.ProductCategoryMapper;
 import java.util.Optional;
@@ -24,10 +26,19 @@ public class ProductCategoryServiceImpl implements ProductCategoryService {
 
     private final ProductCategoryRepository productCategoryRepository;
     private final ProductCategoryMapper productCategoryMapper;
+    private final ProductRepository productRepository;
+    private final RealtimeEventService realtimeEventService;
 
-    public ProductCategoryServiceImpl(ProductCategoryRepository productCategoryRepository, ProductCategoryMapper productCategoryMapper) {
+    public ProductCategoryServiceImpl(
+        ProductCategoryRepository productCategoryRepository,
+        ProductCategoryMapper productCategoryMapper,
+        ProductRepository productRepository,
+        RealtimeEventService realtimeEventService
+    ) {
         this.productCategoryRepository = productCategoryRepository;
         this.productCategoryMapper = productCategoryMapper;
+        this.productRepository = productRepository;
+        this.realtimeEventService = realtimeEventService;
     }
 
     @Override
@@ -35,7 +46,9 @@ public class ProductCategoryServiceImpl implements ProductCategoryService {
         LOG.debug("Request to save ProductCategory : {}", productCategoryDTO);
         ProductCategory productCategory = productCategoryMapper.toEntity(productCategoryDTO);
         productCategory = productCategoryRepository.save(productCategory);
-        return productCategoryMapper.toDto(productCategory);
+        ProductCategoryDTO result = productCategoryMapper.toDto(productCategory);
+        broadcast("CATEGORY_UPDATED", result);
+        return result;
     }
 
     @Override
@@ -43,7 +56,9 @@ public class ProductCategoryServiceImpl implements ProductCategoryService {
         LOG.debug("Request to update ProductCategory : {}", productCategoryDTO);
         ProductCategory productCategory = productCategoryMapper.toEntity(productCategoryDTO);
         productCategory = productCategoryRepository.save(productCategory);
-        return productCategoryMapper.toDto(productCategory);
+        ProductCategoryDTO result = productCategoryMapper.toDto(productCategory);
+        broadcast("CATEGORY_UPDATED", result);
+        return result;
     }
 
     @Override
@@ -57,7 +72,11 @@ public class ProductCategoryServiceImpl implements ProductCategoryService {
                 return existingProductCategory;
             })
             .map(productCategoryRepository::save)
-            .map(productCategoryMapper::toDto);
+            .map(productCategoryMapper::toDto)
+            .map(dto -> {
+                broadcast("CATEGORY_UPDATED", dto);
+                return dto;
+            });
     }
 
     @Override
@@ -77,7 +96,21 @@ public class ProductCategoryServiceImpl implements ProductCategoryService {
     @Override
     public void delete(Long id) {
         LOG.debug("Request to delete ProductCategory : {}", id);
+        if (productRepository.existsByCategoryId(id)) {
+            throw new IllegalStateException(
+                "Cette catégorie contient des produits. Déplacez ou supprimez d'abord ces produits avant de supprimer la catégorie."
+            );
+        }
         productCategoryRepository.deleteById(id);
+        broadcast("CATEGORY_DELETED", java.util.Map.of("id", id));
+    }
+
+    private void broadcast(String event, Object payload) {
+        try {
+            realtimeEventService.broadcast(event, payload);
+        } catch (Exception e) {
+            LOG.warn("Diffusion temps réel {} impossible : {}", event, e.getMessage());
+        }
     }
 
     @Override

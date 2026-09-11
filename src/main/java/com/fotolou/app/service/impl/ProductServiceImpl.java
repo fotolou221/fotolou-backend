@@ -2,9 +2,11 @@ package com.fotolou.app.service.impl;
 
 import com.fotolou.app.domain.Product;
 import com.fotolou.app.domain.ProductImage;
+import com.fotolou.app.repository.OrderItemRepository;
 import com.fotolou.app.repository.ProductImageRepository;
 import com.fotolou.app.repository.ProductRepository;
 import com.fotolou.app.service.ProductService;
+import com.fotolou.app.service.custom.realtime.RealtimeEventService;
 import com.fotolou.app.service.dto.ProductDTO;
 import com.fotolou.app.service.mapper.ProductMapper;
 import java.util.List;
@@ -28,15 +30,21 @@ public class ProductServiceImpl implements ProductService {
     private final ProductRepository productRepository;
     private final ProductMapper productMapper;
     private final ProductImageRepository productImageRepository;
+    private final OrderItemRepository orderItemRepository;
+    private final RealtimeEventService realtimeEventService;
 
     public ProductServiceImpl(
         ProductRepository productRepository,
         ProductMapper productMapper,
-        ProductImageRepository productImageRepository
+        ProductImageRepository productImageRepository,
+        OrderItemRepository orderItemRepository,
+        RealtimeEventService realtimeEventService
     ) {
         this.productRepository = productRepository;
         this.productMapper = productMapper;
         this.productImageRepository = productImageRepository;
+        this.orderItemRepository = orderItemRepository;
+        this.realtimeEventService = realtimeEventService;
     }
 
     private void saveProductImages(Product product, List<String> images) {
@@ -73,6 +81,7 @@ public class ProductServiceImpl implements ProductService {
         saveProductImages(product, productDTO.getImages());
         ProductDTO result = productMapper.toDto(product);
         attachImages(result, product.getId());
+        broadcast("PRODUCT_UPDATED", result);
         return result;
     }
 
@@ -87,6 +96,7 @@ public class ProductServiceImpl implements ProductService {
         }
         ProductDTO result = productMapper.toDto(product);
         attachImages(result, product.getId());
+        broadcast("PRODUCT_UPDATED", result);
         return result;
     }
 
@@ -108,6 +118,7 @@ public class ProductServiceImpl implements ProductService {
                 }
                 ProductDTO result = productMapper.toDto(product);
                 attachImages(result, product.getId());
+                broadcast("PRODUCT_UPDATED", result);
                 return result;
             });
     }
@@ -135,8 +146,23 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public void delete(Long id) {
         LOG.debug("Request to delete Product : {}", id);
+        if (orderItemRepository.existsByProductId(id)) {
+            throw new IllegalStateException(
+                "Ce produit figure dans des commandes existantes et ne peut pas être supprimé. " +
+                    "Marquez-le plutôt \"en rupture de stock\" pour le retirer de la vente."
+            );
+        }
         productImageRepository.deleteByProductId(id);
         productRepository.deleteById(id);
+        broadcast("PRODUCT_DELETED", java.util.Map.of("id", id));
+    }
+
+    private void broadcast(String event, Object payload) {
+        try {
+            realtimeEventService.broadcast(event, payload);
+        } catch (Exception e) {
+            LOG.warn("Diffusion temps réel {} impossible : {}", event, e.getMessage());
+        }
     }
 
     @Override

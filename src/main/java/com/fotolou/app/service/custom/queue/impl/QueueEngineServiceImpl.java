@@ -517,19 +517,34 @@ public class QueueEngineServiceImpl implements QueueEngineService {
                 notifyTicketIsReady(t, salon);
             }
 
-            // Alerte in-app proactive : il ne reste plus qu'une seule personne devant le client
-            if (pos == 1 && oldAhead > 1 && t.getUser() != null) {
-                sendInAppNotification(
-                    t.getUser(),
-                    com.fotolou.app.domain.enumeration.RecipientRole.CLIENT,
-                    com.fotolou.app.domain.enumeration.NotificationType.TICKET,
-                    "Votre tour approche ! ⏳",
-                    String.format(
-                        "Il ne reste plus qu'une seule personne devant vous chez %s. Veuillez vous rapprocher du salon !",
-                        salon.getName()
-                    ),
-                    "/client/tickets"
-                );
+            // Alerte proactive (SMS + in-app) : il ne reste plus qu'une seule personne devant le client
+            if (pos == 1 && oldAhead > 1) {
+                String smsPhone = ticketSmsPhone(t);
+                if (smsPhone != null) {
+                    try {
+                        String msg = String.format(
+                            "Fotolou : Votre tour approche chez %s (Ticket #%d) ! Il ne reste plus qu'une personne devant vous.",
+                            salon.getName(),
+                            t.getTicketNumber()
+                        );
+                        smsService.sendSms(smsPhone, msg);
+                    } catch (Exception e) {
+                        LOG.warn("Impossible d'envoyer le SMS d'alerte d'approche à {}: {}", smsPhone, e.getMessage());
+                    }
+                }
+                if (t.getUser() != null) {
+                    sendInAppNotification(
+                        t.getUser(),
+                        com.fotolou.app.domain.enumeration.RecipientRole.CLIENT,
+                        com.fotolou.app.domain.enumeration.NotificationType.TICKET,
+                        "Votre tour approche ! ⏳",
+                        String.format(
+                            "Il ne reste plus qu'une seule personne devant vous chez %s. Veuillez vous rapprocher du salon !",
+                            salon.getName()
+                        ),
+                        "/client/tickets"
+                    );
+                }
             }
             pos++;
         }
@@ -628,16 +643,21 @@ public class QueueEngineServiceImpl implements QueueEngineService {
     }
 
     private List<TicketDTO> toDtosWithQueueState(List<Ticket> tickets) {
-        Map<Long, Integer> currentNumbersBySalon = new HashMap<>();
+        Map<Long, CurrentTicketInfo> currentInfoBySalon = new HashMap<>();
         return tickets
             .stream()
             .map(ticket -> {
                 TicketDTO dto = ticketMapper.toDto(ticket);
                 Long salonId = ticket.getSalon() != null ? ticket.getSalon().getId() : null;
                 if (salonId != null) {
-                    dto.setCurrentTicketNumber(currentNumbersBySalon.computeIfAbsent(salonId, this::findCurrentTicketNumber));
+                    CurrentTicketInfo info = currentInfoBySalon.computeIfAbsent(salonId, this::findCurrentTicketInfo);
+                    if (info != null) {
+                        dto.setCurrentTicketNumber(info.number());
+                        dto.setCurrentTicketIsYesterday(info.isYesterday());
+                    }
                 }
                 applySelfOwnerName(dto, ticket);
+                enrichOwnerPhone(dto, ticket);
                 return dto;
             })
             .toList();
@@ -646,10 +666,24 @@ public class QueueEngineServiceImpl implements QueueEngineService {
     private TicketDTO toDtoWithQueueState(Ticket ticket) {
         TicketDTO dto = ticketMapper.toDto(ticket);
         if (ticket.getSalon() != null && ticket.getSalon().getId() != null) {
-            dto.setCurrentTicketNumber(findCurrentTicketNumber(ticket.getSalon().getId()));
+            CurrentTicketInfo info = findCurrentTicketInfo(ticket.getSalon().getId());
+            if (info != null) {
+                dto.setCurrentTicketNumber(info.number());
+                dto.setCurrentTicketIsYesterday(info.isYesterday());
+            }
         }
         applySelfOwnerName(dto, ticket);
+        enrichOwnerPhone(dto, ticket);
         return dto;
+    }
+
+    private void enrichOwnerPhone(TicketDTO dto, Ticket ticket) {
+        if (dto != null && (dto.getOwnerPhone() == null || dto.getOwnerPhone().isBlank()) && ticket != null && ticket.getUser() != null) {
+            String login = ticket.getUser().getLogin();
+            if (login != null && !login.contains("@")) {
+                dto.setOwnerPhone(login);
+            }
+        }
     }
 
     private String resolveOwnerName(TicketOwnerType ownerType, String requestedName, User currentUser) {
@@ -687,7 +721,9 @@ public class QueueEngineServiceImpl implements QueueEngineService {
             }
 
             if (ownerType == TicketOwnerType.SELF) {
-                requestedPhone = currentUserPhone;
+                if (requestedPhone == null || requestedPhone.isBlank()) {
+                    requestedPhone = currentUserPhone;
+                }
             } else if (requestedPhone != null) {
                 if (currentUserPhone != null && requestedPhone.equals(currentUserPhone)) {
                     throw new IllegalArgumentException("Vous ne pouvez pas utiliser votre propre numero pour une autre personne.");
@@ -790,13 +826,27 @@ public class QueueEngineServiceImpl implements QueueEngineService {
         return (firstName + (lastName.isBlank() ? "" : " " + lastName)).trim();
     }
 
-    private Integer findCurrentTicketNumber(Long salonId) {
-        return ticketRepository
+    private record CurrentTicketInfo(Integer number, boolean isYesterday) {}
+
+    private CurrentTicketInfo findCurrentTicketInfo(Long salonId) {
+        Ticket current = ticketRepository
             .findBySalonIdAndStatusInOrderByCreatedDateAscIdAsc(salonId, List.of(TicketStatus.YOUR_TURN, TicketStatus.WAITING))
             .stream()
             .findFirst()
-            .map(Ticket::getTicketNumber)
             .orElse(null);
+
+        if (current == null) {
+            return null;
+        }
+
+        boolean isYesterday = false;
+        if (current.getCreatedDate() != null) {
+            java.time.LocalDate ticketDate = current.getCreatedDate().atZone(java.time.ZoneId.of("Africa/Dakar")).toLocalDate();
+            java.time.LocalDate today = java.time.LocalDate.now(java.time.ZoneId.of("Africa/Dakar"));
+            isYesterday = ticketDate.isBefore(today);
+        }
+
+        return new CurrentTicketInfo(current.getTicketNumber(), isYesterday);
     }
 
     private void updateSalonAffluence(Salon salon) {

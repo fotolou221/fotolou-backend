@@ -158,3 +158,6 @@ Desktop.ini
 ######################
 coverage/
 .nyc_output/
+
+# Stockage local des fichiers téléversés (dev)
+/uploads/

@@ -100,7 +100,7 @@ public class SalonResource {
         if (!normalizedPhone.isBlank()) {
             if (phoneAlreadyUsed(normalizedPhone)) {
                 throw new BadRequestAlertException(
-                    "Ce numéro de téléphone est déjà utilisé par un autre utilisateur.",
+                    "Ce numéro de téléphone est déjà associé à un autre salon.",
                     ENTITY_NAME,
                     "phonealreadyused"
                 );
@@ -506,20 +506,14 @@ public class SalonResource {
 
     private boolean phoneAlreadyUsed(String normalizedPhone) {
         return (
-            userRepository.findOneByLogin(normalizedPhone).isPresent() ||
-            userRepository
-                .findAll()
-                .stream()
-                .anyMatch(user -> samePhone(normalizedPhone, user.getLogin())) ||
-            coiffeurProfileRepository.findByPhone(normalizedPhone).isPresent() ||
-            coiffeurProfileRepository
-                .findAll()
-                .stream()
-                .anyMatch(profile -> samePhone(normalizedPhone, profile.getPhone())) ||
             salonRepository
                 .findAll()
                 .stream()
-                .anyMatch(salon -> samePhone(normalizedPhone, salon.getPhone()))
+                .anyMatch(salon -> samePhone(normalizedPhone, salon.getPhone())) ||
+            coiffeurProfileRepository
+                .findAll()
+                .stream()
+                .anyMatch(profile -> profile.getSalon() != null && samePhone(normalizedPhone, profile.getPhone()))
         );
     }
 

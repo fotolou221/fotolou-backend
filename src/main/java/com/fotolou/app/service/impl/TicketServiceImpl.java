@@ -145,10 +145,24 @@ public class TicketServiceImpl implements TicketService {
     private TicketDTO toDtoWithQueueState(Ticket ticket) {
         TicketDTO dto = ticketMapper.toDto(ticket);
         if (ticket.getSalon() != null && ticket.getSalon().getId() != null) {
-            dto.setCurrentTicketNumber(findCurrentTicketNumber(ticket.getSalon().getId()));
+            CurrentTicketInfo info = findCurrentTicketInfo(ticket.getSalon().getId());
+            if (info != null) {
+                dto.setCurrentTicketNumber(info.number());
+                dto.setCurrentTicketIsYesterday(info.isYesterday());
+            }
         }
         applySelfOwnerName(dto, ticket);
+        enrichOwnerPhone(dto, ticket);
         return dto;
+    }
+
+    private void enrichOwnerPhone(TicketDTO dto, Ticket ticket) {
+        if (dto != null && (dto.getOwnerPhone() == null || dto.getOwnerPhone().isBlank()) && ticket != null && ticket.getUser() != null) {
+            String login = ticket.getUser().getLogin();
+            if (login != null && !login.contains("@")) {
+                dto.setOwnerPhone(login);
+            }
+        }
     }
 
     private void applySelfOwnerName(TicketDTO dto, Ticket ticket) {
@@ -172,15 +186,29 @@ public class TicketServiceImpl implements TicketService {
         return (firstName + (lastName.isBlank() ? "" : " " + lastName)).trim();
     }
 
-    private Integer findCurrentTicketNumber(Long salonId) {
-        return ticketRepository
+    private record CurrentTicketInfo(Integer number, boolean isYesterday) {}
+
+    private CurrentTicketInfo findCurrentTicketInfo(Long salonId) {
+        Ticket current = ticketRepository
             .findBySalonIdAndStatusInOrderByCreatedDateAscIdAsc(
                 salonId,
                 List.of(com.fotolou.app.domain.enumeration.TicketStatus.YOUR_TURN, com.fotolou.app.domain.enumeration.TicketStatus.WAITING)
             )
             .stream()
             .findFirst()
-            .map(Ticket::getTicketNumber)
             .orElse(null);
+
+        if (current == null) {
+            return null;
+        }
+
+        boolean isYesterday = false;
+        if (current.getCreatedDate() != null) {
+            java.time.LocalDate ticketDate = current.getCreatedDate().atZone(java.time.ZoneId.of("Africa/Dakar")).toLocalDate();
+            java.time.LocalDate today = java.time.LocalDate.now(java.time.ZoneId.of("Africa/Dakar"));
+            isYesterday = ticketDate.isBefore(today);
+        }
+
+        return new CurrentTicketInfo(current.getTicketNumber(), isYesterday);
     }
 }

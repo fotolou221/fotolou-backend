@@ -122,10 +122,20 @@ public class ExceptionTranslator extends ResponseEntityExceptionHandler {
         }
 
         Map<String, Object> problemProperties = problem.getProperties();
-        if (problemProperties == null || !problemProperties.containsKey(MESSAGE_KEY)) problem.setProperty(
-            MESSAGE_KEY,
-            getMappedMessageKey(err) != null ? getMappedMessageKey(err) : "error.http." + problem.getStatus()
-        );
+        if (problemProperties == null || !problemProperties.containsKey(MESSAGE_KEY)) {
+            String mappedKey = getMappedMessageKey(err);
+            if (mappedKey != null) {
+                problem.setProperty(MESSAGE_KEY, mappedKey);
+            } else if (err instanceof IllegalArgumentException || err instanceof IllegalStateException) {
+                problem.setProperty(MESSAGE_KEY, err.getMessage());
+            } else if (problem.getDetail() != null && !problem.getDetail().isBlank()) {
+                problem.setProperty(MESSAGE_KEY, problem.getDetail());
+            } else if (problem.getTitle() != null && !problem.getTitle().isBlank()) {
+                problem.setProperty(MESSAGE_KEY, problem.getTitle());
+            } else {
+                problem.setProperty(MESSAGE_KEY, "error.http." + problem.getStatus());
+            }
+        }
 
         if (problemProperties == null || !problemProperties.containsKey(PATH_KEY)) problem.setProperty(PATH_KEY, getPathValue(request));
 
@@ -225,6 +235,9 @@ public class ExceptionTranslator extends ResponseEntityExceptionHandler {
         if (err instanceof ConcurrencyFailureException) return HttpStatus.CONFLICT;
         if (err instanceof BadCredentialsException) return HttpStatus.UNAUTHORIZED;
         if (err instanceof ConstraintViolationException) return HttpStatus.BAD_REQUEST;
+        if (err instanceof IllegalArgumentException) return HttpStatus.BAD_REQUEST;
+        if (err instanceof IllegalStateException) return HttpStatus.CONFLICT;
+        if (err instanceof org.springframework.dao.DataIntegrityViolationException) return HttpStatus.CONFLICT;
         return null;
     }
 

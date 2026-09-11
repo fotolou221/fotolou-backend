@@ -7,6 +7,7 @@ import jakarta.persistence.Lob;
 import jakarta.validation.constraints.*;
 import java.io.Serializable;
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -61,6 +62,28 @@ public class BoutiqueOrderDTO implements Serializable {
     private Instant lastModifiedDate;
 
     private UserDTO user;
+
+    /** Lignes d'articles de la commande (à plat, sans référence circulaire). */
+    private List<OrderLineDTO> items;
+
+    /** Lien WhatsApp pré-rempli pour confirmer la commande (rempli au checkout uniquement). */
+    private String whatsAppUrl;
+
+    public List<OrderLineDTO> getItems() {
+        return items;
+    }
+
+    public void setItems(List<OrderLineDTO> items) {
+        this.items = items;
+    }
+
+    public String getWhatsAppUrl() {
+        return whatsAppUrl;
+    }
+
+    public void setWhatsAppUrl(String whatsAppUrl) {
+        this.whatsAppUrl = whatsAppUrl;
+    }
 
     public Long getId() {
         return id;

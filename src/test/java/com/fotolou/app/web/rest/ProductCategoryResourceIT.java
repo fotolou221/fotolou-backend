@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fotolou.app.IntegrationTest;
 import com.fotolou.app.domain.ProductCategory;
 import com.fotolou.app.repository.ProductCategoryRepository;
+import com.fotolou.app.security.AuthoritiesConstants;
 import com.fotolou.app.service.dto.ProductCategoryDTO;
 import com.fotolou.app.service.mapper.ProductCategoryMapper;
 import jakarta.persistence.EntityManager;
@@ -31,7 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @IntegrationTest
 @AutoConfigureMockMvc
-@WithMockUser
+@WithMockUser(authorities = AuthoritiesConstants.ADMIN)
 class ProductCategoryResourceIT {
 
     private static final String DEFAULT_NAME = "AAAAAAAAAA";

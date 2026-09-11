@@ -9,7 +9,6 @@ import com.fotolou.app.service.UserService;
 import com.fotolou.app.service.custom.otp.OtpService;
 import com.fotolou.app.service.dto.RelativeDTO;
 import com.fotolou.app.service.mapper.RelativeMapper;
-import com.fotolou.app.web.rest.errors.BadRequestAlertException;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
@@ -74,9 +73,7 @@ public class RelativeServiceImpl implements RelativeService {
     @Override
     public RelativeDTO saveForUser(RelativeDTO relativeDTO, String login) {
         LOG.debug("Request to save Relative for user {} : {}", login, relativeDTO);
-        User user = userRepository
-            .findOneByLogin(login)
-            .orElseThrow(() -> new BadRequestAlertException("Utilisateur introuvable", "relative", "usernotfound"));
+        User user = userRepository.findOneByLogin(login).orElseThrow(() -> new IllegalArgumentException("Utilisateur introuvable"));
 
         Relative relative = relativeMapper.toEntity(relativeDTO);
         relative.setUser(user);
@@ -101,7 +98,7 @@ public class RelativeServiceImpl implements RelativeService {
         LOG.debug("Request to update Relative for user {} : {}", login, relativeDTO);
         Relative existing = relativeRepository
             .findByIdAndUserLogin(relativeDTO.getId(), login)
-            .orElseThrow(() -> new BadRequestAlertException("Ce proche est introuvable ou ne vous appartient pas", "relative", "notowned"));
+            .orElseThrow(() -> new IllegalArgumentException("Ce proche est introuvable ou ne vous appartient pas"));
 
         existing.setName(relativeDTO.getName());
         existing.setRelation(relativeDTO.getRelation());
@@ -185,7 +182,7 @@ public class RelativeServiceImpl implements RelativeService {
         LOG.debug("Request to delete Relative {} for user : {}", id, login);
         Relative relative = relativeRepository
             .findByIdAndUserLogin(id, login)
-            .orElseThrow(() -> new BadRequestAlertException("Ce proche est introuvable ou ne vous appartient pas", "relative", "notowned"));
+            .orElseThrow(() -> new IllegalArgumentException("Ce proche est introuvable ou ne vous appartient pas"));
         relativeRepository.delete(relative);
     }
 
@@ -211,7 +208,7 @@ public class RelativeServiceImpl implements RelativeService {
 
         String accountPhone = normalizePhoneForCompare(login);
         if (accountPhone != null && normalizedPhone.equals(accountPhone)) {
-            throw new BadRequestAlertException("Vous ne pouvez pas ajouter votre propre numero comme proche.", "relative", "ownphone");
+            throw new IllegalArgumentException("Vous ne pouvez pas ajouter votre propre numero comme proche.");
         }
 
         boolean alreadyUsedByAnotherRelative = relativeRepository
@@ -224,11 +221,7 @@ public class RelativeServiceImpl implements RelativeService {
             );
 
         if (alreadyUsedByAnotherRelative) {
-            throw new BadRequestAlertException(
-                "Ce numero de telephone est deja utilise par un autre proche.",
-                "relative",
-                "phonealreadyused"
-            );
+            throw new IllegalArgumentException("Ce numero de telephone est deja utilise par un autre proche.");
         }
     }
 
@@ -240,7 +233,7 @@ public class RelativeServiceImpl implements RelativeService {
 
         int digitsCount = normalized.replaceAll("[^0-9]", "").length();
         if (digitsCount < 9) {
-            throw new BadRequestAlertException("Numero de telephone invalide.", "relative", "invalidphone");
+            throw new IllegalArgumentException("Numero de telephone invalide.");
         }
 
         return normalized;
@@ -255,11 +248,7 @@ public class RelativeServiceImpl implements RelativeService {
         try {
             return relativeRepository.saveAndFlush(relative);
         } catch (DataIntegrityViolationException e) {
-            throw new BadRequestAlertException(
-                "Ce numero de telephone est deja utilise par un autre proche.",
-                "relative",
-                "phonealreadyused"
-            );
+            throw new IllegalArgumentException("Ce numero de telephone est deja utilise par un autre proche.");
         }
     }
 }

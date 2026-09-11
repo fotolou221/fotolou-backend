@@ -97,10 +97,40 @@ public class StorageServiceImpl implements StorageService {
         }
 
         String relativePath = folder != null && !folder.isBlank() ? folder + "/" + uniqueFilename : uniqueFilename;
-        String publicUrl = applicationProperties.getStorage().getCdnUrl() + relativePath;
+        String publicUrl = buildPublicUrl(relativePath);
 
         LOG.info("📁 [LOCAL] Fichier enregistré localement : {} -> {}", targetPath, publicUrl);
         return publicUrl;
+    }
+
+    /**
+     * Construit une URL publique ABSOLUE vers le fichier local.
+     * Si {@code cdn-url} est déjà absolu (http/https), on l'utilise tel quel.
+     * Sinon (ex: "/api/files/") on le résout contre l'URL de la requête courante,
+     * pour que l'image reste chargeable depuis un autre domaine (frontend, PWA déployée).
+     */
+    private String buildPublicUrl(String relativePath) {
+        String cdnUrl = applicationProperties.getStorage().getCdnUrl();
+        if (cdnUrl == null || cdnUrl.isBlank()) {
+            cdnUrl = "/api/files/";
+        }
+        if (!cdnUrl.endsWith("/")) {
+            cdnUrl = cdnUrl + "/";
+        }
+
+        if (cdnUrl.startsWith("http://") || cdnUrl.startsWith("https://")) {
+            return cdnUrl + relativePath;
+        }
+
+        try {
+            String base = org.springframework.web.servlet.support.ServletUriComponentsBuilder.fromCurrentContextPath()
+                .build()
+                .toUriString();
+            return base + (cdnUrl.startsWith("/") ? cdnUrl : "/" + cdnUrl) + relativePath;
+        } catch (Exception e) {
+            // Hors contexte requête : on renvoie le chemin relatif en dernier recours
+            return cdnUrl + relativePath;
+        }
     }
 
     @Override

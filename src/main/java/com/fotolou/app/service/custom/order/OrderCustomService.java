@@ -21,6 +21,17 @@ public interface OrderCustomService {
         String notes
     ) {}
 
+    record AdminCreateOrderRequest(
+        @NotEmpty List<CartItemRequest> items,
+        String deliveryAddress,
+        String deliveryDistrict,
+        String orderType,
+        @NotNull String customerName,
+        @NotNull String customerPhone,
+        String notes,
+        String status // optionnel : EN_ATTENTE (défaut) ou EN_COURS
+    ) {}
+
     record CheckoutResult(
         Long id,
         String orderNumber,
@@ -34,9 +45,19 @@ public interface OrderCustomService {
     ) {}
 
     /**
-     * Enregistre une commande et génère le lien de validation WhatsApp.
+     * Enregistre une commande client en statut EN_ATTENTE et génère le lien de confirmation WhatsApp.
      */
     CheckoutResult checkout(CheckoutRequest request, String userLogin);
+
+    /**
+     * Création d'une commande par l'admin pour un client qui appelle / passe commande hors application.
+     */
+    BoutiqueOrderDTO adminCreateOrder(AdminCreateOrderRequest request, String adminLogin);
+
+    /**
+     * Confirme une commande EN_ATTENTE (passage en EN_COURS). Idempotent si déjà confirmée.
+     */
+    BoutiqueOrderDTO confirmOrder(Long orderId, String actorLogin);
 
     /**
      * Récupère l'historique des commandes d'un client.

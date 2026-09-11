@@ -16,6 +16,8 @@ import org.springframework.stereotype.Repository;
 public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
     List<OrderItem> findByOrderId(Long orderId);
 
+    boolean existsByProductId(Long productId);
+
     default Optional<OrderItem> findOneWithEagerRelationships(Long id) {
         return this.findOneWithToOneRelationships(id);
     }

@@ -13,6 +13,7 @@ import com.fotolou.app.IntegrationTest;
 import com.fotolou.app.domain.Product;
 import com.fotolou.app.domain.ProductCategory;
 import com.fotolou.app.repository.ProductRepository;
+import com.fotolou.app.security.AuthoritiesConstants;
 import com.fotolou.app.service.ProductService;
 import com.fotolou.app.service.dto.ProductDTO;
 import com.fotolou.app.service.mapper.ProductMapper;
@@ -42,7 +43,7 @@ import org.springframework.transaction.annotation.Transactional;
 @IntegrationTest
 @ExtendWith(MockitoExtension.class)
 @AutoConfigureMockMvc
-@WithMockUser
+@WithMockUser(authorities = AuthoritiesConstants.ADMIN)
 class ProductResourceIT {
 
     private static final String DEFAULT_BRAND = "AAAAAAAAAA";
