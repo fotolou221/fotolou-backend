@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260912000000-1" author="fotolou">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="jhi_user" columnName="phone"/>
+            </not>
+        </preConditions>
+        <comment>Ajout du numéro de téléphone unique sur la table jhi_user</comment>
+        <addColumn tableName="jhi_user">
+            <column name="phone" type="varchar(30)"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="20260912000000-2" author="fotolou">
+        <comment>Nettoyage complet de la base de données et conservation uniquement du super administrateur</comment>
+        <sql>
+            <!-- 1. Suppression des données métier dépendantes -->
+            DELETE FROM ticket;
+            DELETE FROM relative;
+            DELETE FROM favorite_salon;
+            DELETE FROM coiffeur_profile;
+            DELETE FROM salon_action;
+            DELETE FROM salon;
+            DELETE FROM order_item;
+            DELETE FROM boutique_order;
+            DELETE FROM product_image;
+            DELETE FROM product;
+            DELETE FROM app_notification;
+            DELETE FROM push_subscription;
+            DELETE FROM otp_verification;
+
+            <!-- 2. Suppression de toutes les associations de rôles sauf le super admin -->
+            DELETE FROM jhi_user_authority
+            WHERE user_id NOT IN (
+                SELECT id FROM jhi_user WHERE login = 'admin@fotolou.sn' OR login = 'admin'
+            );
+
+            <!-- 3. Suppression de tous les utilisateurs sauf le super admin -->
+            DELETE FROM jhi_user
+            WHERE login != 'admin@fotolou.sn' AND login != 'admin';
+
+            <!-- 4. Mise à jour du super admin avec son email et son numéro unique de support 778627052 -->
+            UPDATE jhi_user
+            SET phone = '+221778627052',
+                email = 'fotolou3@gmail.com',
+                first_name = 'Super',
+                last_name = 'Admin',
+                activated = true
+            WHERE login = 'admin@fotolou.sn' OR login = 'admin';
+
+            <!-- 5. Mise à jour des paramètres plateforme avec les coordonnées de support -->
+            UPDATE platform_settings
+            SET contact_phone = '+221 77 862 70 52',
+                contact_email = 'fotolou3@gmail.com';
+        </sql>
+    </changeSet>
+
+    <changeSet id="20260912000000-3" author="fotolou">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="ux_user_phone"/>
+            </not>
+        </preConditions>
+        <comment>Contrainte d'unicité et index sur le numéro de téléphone utilisateur</comment>
+        <addUniqueConstraint
+            columnNames="phone"
+            constraintName="ux_user_phone"
+            tableName="jhi_user"/>
+        <createIndex indexName="idx_user_phone" tableName="jhi_user">
+            <column name="phone"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

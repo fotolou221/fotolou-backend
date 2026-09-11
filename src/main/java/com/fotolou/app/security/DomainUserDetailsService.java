@@ -42,8 +42,21 @@ public class DomainUserDetailsService implements UserDetailsService {
         }
 
         String lowercaseLogin = login.toLowerCase(Locale.ENGLISH);
+        String digitsOnly = lowercaseLogin.replaceAll("[^0-9]", "");
+
         return userRepository
             .findOneWithAuthoritiesByLogin(lowercaseLogin)
+            .or(() -> userRepository.findOneWithAuthoritiesByPhone(lowercaseLogin))
+            .or(() ->
+                digitsOnly.length() >= 9
+                    ? userRepository.findOneWithAuthoritiesByPhone("+221" + digitsOnly.substring(digitsOnly.length() - 9))
+                    : Optional.empty()
+            )
+            .or(() ->
+                digitsOnly.length() >= 9
+                    ? userRepository.findOneWithAuthoritiesByPhone(digitsOnly.substring(digitsOnly.length() - 9))
+                    : Optional.empty()
+            )
             .map(user -> createSpringSecurityUser(lowercaseLogin, user))
             .orElseThrow(() -> new UsernameNotFoundException("User " + lowercaseLogin + " was not found in the database"));
     }

@@ -5,6 +5,7 @@ import com.fotolou.app.repository.*;
 import com.fotolou.app.security.AuthoritiesConstants;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,40 +71,44 @@ public class DatabaseDataInitializer implements CommandLineRunner {
     }
 
     private void initAdminUser() {
-        if (userRepository.findOneByLogin("admin@fotolou.sn").isEmpty()) {
-            User admin = new User();
-            admin.setLogin("admin@fotolou.sn");
-            admin.setEmail("admin@fotolou.sn");
-            admin.setPassword(passwordEncoder.encode("admin_fotolou_2026"));
-            admin.setFirstName("Super");
-            admin.setLastName("Admin");
-            admin.setActivated(true);
-            admin.setLangKey("fr");
+        Optional<User> optAdmin = userRepository
+            .findOneByLogin("admin@fotolou.sn")
+            .or(() -> userRepository.findOneByLogin("admin"))
+            .or(() -> userRepository.findOneByPhone("+221778627052"));
 
-            Set<Authority> authorities = new HashSet<>();
-            authorityRepository.findById(AuthoritiesConstants.ADMIN).ifPresent(authorities::add);
-            authorityRepository.findById(AuthoritiesConstants.SUPER_ADMIN).ifPresent(authorities::add);
-            authorityRepository.findById(AuthoritiesConstants.USER).ifPresent(authorities::add);
-            admin.setAuthorities(authorities);
-            userRepository.save(admin);
-            LOG.info("👤 Compte Super-Administrateur unique 'admin@fotolou.sn' vérifié/créé.");
-        }
+        User admin = optAdmin.orElseGet(User::new);
+        admin.setLogin("admin@fotolou.sn");
+        admin.setEmail("fotolou3@gmail.com");
+        admin.setPhone("+221778627052");
+        admin.setPassword(passwordEncoder.encode("admin_fotolou_2026"));
+        admin.setFirstName("Super");
+        admin.setLastName("Admin");
+        admin.setActivated(true);
+        admin.setLangKey("fr");
+
+        Set<Authority> authorities = new HashSet<>();
+        authorityRepository.findById(AuthoritiesConstants.ADMIN).ifPresent(authorities::add);
+        authorityRepository.findById(AuthoritiesConstants.SUPER_ADMIN).ifPresent(authorities::add);
+        authorityRepository.findById(AuthoritiesConstants.USER).ifPresent(authorities::add);
+        admin.setAuthorities(authorities);
+        userRepository.save(admin);
+        LOG.info("👤 Compte Super-Administrateur unique 'admin@fotolou.sn' (tél: +221778627052, email: fotolou3@gmail.com) synchronisé.");
     }
 
     private void initPlatformSettings() {
-        if (platformSettingsRepository.count() == 0) {
-            PlatformSettings settings = new PlatformSettings();
-            settings.setAppName("Fotolou");
-            settings.setContactEmail("support@fotolou.sn");
-            settings.setContactPhone("+221 77 862 70 52");
+        PlatformSettings settings = platformSettingsRepository.findAll().stream().findFirst().orElseGet(PlatformSettings::new);
+        settings.setAppName("Fotolou");
+        settings.setContactEmail("fotolou3@gmail.com");
+        settings.setContactPhone("+221 77 862 70 52");
+        if (settings.getId() == null) {
             settings.setCommissionRate(10.0);
             settings.setOpeningTime("09:00");
             settings.setClosingTime("21:00");
             settings.setAllowRelativeBooking(true);
             settings.setMaintenanceMode(false);
-            platformSettingsRepository.save(settings);
-            LOG.info("⚙️ Paramètres initiaux de la plateforme Fotolou configurés.");
         }
+        platformSettingsRepository.save(settings);
+        LOG.info("⚙️ Paramètres de la plateforme Fotolou synchronisés (tél: +221 77 862 70 52, email: fotolou3@gmail.com).");
     }
 
     private void initDefaultCategories() {

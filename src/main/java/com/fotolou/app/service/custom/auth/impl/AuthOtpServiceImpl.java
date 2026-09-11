@@ -237,13 +237,21 @@ public class AuthOtpServiceImpl implements AuthOtpService {
     }
 
     private User findOrCreateUser(String phone, String optionalName) {
-        Optional<User> optUser = userRepository.findOneWithAuthoritiesByLogin(phone);
+        Optional<User> optUser = userRepository
+            .findOneWithAuthoritiesByLogin(phone)
+            .or(() -> userRepository.findOneWithAuthoritiesByPhone(phone));
         if (optUser.isPresent()) {
-            return optUser.get();
+            User existing = optUser.get();
+            if (existing.getPhone() == null || existing.getPhone().isBlank()) {
+                existing.setPhone(phone);
+                return userRepository.save(existing);
+            }
+            return existing;
         }
 
         User newUser = new User();
         newUser.setLogin(phone);
+        newUser.setPhone(phone);
         newUser.setPassword(passwordEncoder.encode(phone + "_fotolou_secret_key"));
         newUser.setActivated(true);
         newUser.setLangKey("fr");
