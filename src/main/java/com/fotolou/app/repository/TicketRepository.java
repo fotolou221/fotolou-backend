@@ -55,6 +55,9 @@ public interface TicketRepository extends JpaRepository<Ticket, Long>, JpaSpecif
 
     long countBySalonIdAndStatusIn(Long salonId, List<com.fotolou.app.domain.enumeration.TicketStatus> statuses);
 
+    @Query("select count(t) from Ticket t where t.status in :statuses")
+    long countByStatusIn(@Param("statuses") List<com.fotolou.app.domain.enumeration.TicketStatus> statuses);
+
     default Optional<Ticket> findOneWithEagerRelationships(Long id) {
         return this.findOneWithToOneRelationships(id);
     }

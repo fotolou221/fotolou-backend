@@ -106,6 +106,8 @@ public class SecurityConfiguration {
                     .permitAll()
                     .requestMatchers("/api/admin/**")
                     .permitAll()
+                    .requestMatchers("/api/public/**", "/api/vitrine/**")
+                    .permitAll()
                     .requestMatchers("/websocket/**")
                     .permitAll()
                     .requestMatchers("/api/uptime", "/api/uptime/**")
