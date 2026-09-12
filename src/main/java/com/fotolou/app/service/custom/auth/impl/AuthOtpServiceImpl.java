@@ -237,22 +237,35 @@ public class AuthOtpServiceImpl implements AuthOtpService {
     }
 
     private User findOrCreateUser(String phone, String optionalName) {
+        String digitsOnly = phone != null ? phone.replaceAll("[^0-9]", "") : "";
+        String local9 = digitsOnly.length() >= 9 ? digitsOnly.substring(digitsOnly.length() - 9) : digitsOnly;
+        String intlPhone = "+221" + local9;
+
         Optional<User> optUser = userRepository
             .findOneWithAuthoritiesByLogin(phone)
-            .or(() -> userRepository.findOneWithAuthoritiesByPhone(phone));
+            .or(() -> userRepository.findOneWithAuthoritiesByPhone(phone))
+            .or(() -> userRepository.findOneWithAuthoritiesByPhone(intlPhone))
+            .or(() -> userRepository.findOneWithAuthoritiesByPhone(local9))
+            .or(() -> userRepository.findOneWithAuthoritiesByLogin(intlPhone))
+            .or(() -> userRepository.findOneWithAuthoritiesByLogin(local9));
+
         if (optUser.isPresent()) {
             User existing = optUser.get();
             if (existing.getPhone() == null || existing.getPhone().isBlank()) {
-                existing.setPhone(phone);
-                return userRepository.save(existing);
+                existing.setPhone(intlPhone);
+                try {
+                    return userRepository.save(existing);
+                } catch (Exception e) {
+                    LOG.warn("Impossible de mettre à jour le téléphone de l'utilisateur existant: {}", e.getMessage());
+                }
             }
             return existing;
         }
 
         User newUser = new User();
-        newUser.setLogin(phone);
-        newUser.setPhone(phone);
-        newUser.setPassword(passwordEncoder.encode(phone + "_fotolou_secret_key"));
+        newUser.setLogin(intlPhone);
+        newUser.setPhone(intlPhone);
+        newUser.setPassword(passwordEncoder.encode(intlPhone + "_fotolou_secret_key"));
         newUser.setActivated(true);
         newUser.setLangKey("fr");
 
@@ -264,7 +277,7 @@ public class AuthOtpServiceImpl implements AuthOtpService {
             }
         } else {
             newUser.setFirstName("Client");
-            newUser.setLastName(phone.substring(Math.max(0, phone.length() - 4)));
+            newUser.setLastName(local9.length() >= 4 ? local9.substring(local9.length() - 4) : local9);
         }
 
         Set<Authority> authorities = new HashSet<>();

@@ -72,10 +72,11 @@ public class AuthOtpResource {
         } catch (BadCredentialsException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Collections.singletonMap("error", e.getMessage()));
         } catch (Exception e) {
-            LOG.error("Erreur lors de la vérification OTP", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                Collections.singletonMap("error", "Une erreur est survenue lors de la vérification du code.")
-            );
+            LOG.error("Erreur lors de la vérification OTP pour {}", request.phone(), e);
+            java.util.Map<String, Object> err = new java.util.LinkedHashMap<>();
+            err.put("error", "Une erreur est survenue lors de la vérification du code.");
+            err.put("message", e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(err);
         }
     }
 

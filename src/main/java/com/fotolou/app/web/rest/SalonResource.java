@@ -412,13 +412,21 @@ public class SalonResource {
         }
 
         String userName = normalizeOwnerName(userDisplayName(profile.getUser()));
-        if (isRealOwnerName(userName, salonName)) {
+        if (!userName.isBlank() && isRealOwnerName(userName)) {
             return userName;
         }
 
         String profileName = normalizeOwnerName(cleanGeneratedOwnerName(profile.getName(), salonName));
-        if (isRealOwnerName(profileName, salonName)) {
+        if (!profileName.isBlank() && isRealOwnerName(profileName)) {
             return profileName;
+        }
+
+        if (!userName.isBlank()) {
+            return userName;
+        }
+
+        if (profile.getName() != null && !profile.getName().isBlank()) {
+            return cleanGeneratedOwnerName(profile.getName(), null);
         }
 
         return "";
@@ -426,7 +434,7 @@ public class SalonResource {
 
     private String fallbackOwnerName(com.fotolou.app.domain.User user, String salonName) {
         String userName = userDisplayName(user);
-        if (isRealOwnerName(userName, salonName)) {
+        if (isRealOwnerName(userName)) {
             return userName;
         }
         return "Coiffeur Proprietaire";
@@ -466,29 +474,17 @@ public class SalonResource {
             return "";
         }
 
-        cleanName = cleanName.replace("(Propriétaire)", "").replace("(Proprietaire)", "").trim();
-        if (salonName != null && !salonName.isBlank() && cleanName.equalsIgnoreCase(salonName.trim())) {
-            return "";
-        }
-        return cleanName;
+        return cleanName.replace("(Propriétaire)", "").replace("(Proprietaire)", "").trim();
     }
 
-    private boolean isRealOwnerName(String ownerName, String salonName) {
+    private boolean isRealOwnerName(String ownerName) {
         String cleanName = normalizeOwnerName(ownerName);
         if (cleanName.isBlank()) {
             return false;
         }
 
         String normalized = cleanName.toLowerCase();
-        String normalizedSalon = salonName != null ? salonName.trim().toLowerCase() : "";
-        return (
-            !normalized.equals("coiffeur proprietaire") &&
-            !normalized.equals("barbier fotolou") &&
-            (normalizedSalon.isBlank() ||
-                (!normalized.equals(normalizedSalon) &&
-                    !normalized.equals(normalizedSalon + " propriétaire") &&
-                    !normalized.equals(normalizedSalon + " proprietaire")))
-        );
+        return !normalized.equals("coiffeur proprietaire") && !normalized.equals("barbier fotolou");
     }
 
     private String normalizeOwnerName(String... names) {
