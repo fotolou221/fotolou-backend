@@ -193,6 +193,30 @@ public class AuthOtpServiceImpl implements AuthOtpService {
         Optional<com.fotolou.app.domain.CoiffeurProfile> optProfile = coiffeurProfileRepository.findOneWithSalonByUserLogin(
             user.getLogin()
         );
+
+        if (optProfile.isEmpty()) {
+            String rawPhone = user.getPhone() != null && !user.getPhone().isBlank() ? user.getPhone() : user.getLogin();
+            if (rawPhone != null && !rawPhone.isBlank()) {
+                String digitsOnly = rawPhone.replaceAll("[^0-9]", "");
+                String local9 = digitsOnly.length() >= 9 ? digitsOnly.substring(digitsOnly.length() - 9) : digitsOnly;
+                String intlPhone = "+221" + local9;
+
+                optProfile = coiffeurProfileRepository
+                    .findByPhone(intlPhone)
+                    .or(() -> coiffeurProfileRepository.findByPhone(local9))
+                    .or(() -> coiffeurProfileRepository.findByPhone(rawPhone));
+            }
+        }
+
+        if (optProfile.isPresent() && optProfile.get().getUser() == null) {
+            optProfile.get().setUser(user);
+            try {
+                coiffeurProfileRepository.save(optProfile.get());
+            } catch (Exception e) {
+                LOG.warn("Impossible de lier l'utilisateur au profil coiffeur: {}", e.getMessage());
+            }
+        }
+
         Long salonId = null;
         String salonSlug = null;
         if (optProfile.isPresent() && optProfile.get().getSalon() != null) {
@@ -200,15 +224,48 @@ public class AuthOtpServiceImpl implements AuthOtpService {
             salonSlug = optProfile.get().getSalon().getSlug();
         }
 
-        boolean hasCoiffeurProfile = optProfile.isPresent() && optProfile.get().getSalon() != null;
-        boolean isCoiffeur = hasCoiffeurProfile;
-        boolean isAdmin = user
-            .getAuthorities()
-            .stream()
-            .anyMatch(a -> a.getName().equals(AuthoritiesConstants.ADMIN) || a.getName().equals(AuthoritiesConstants.SUPER_ADMIN));
-        boolean wantsCoiffeur = requestedRole != null && requestedRole.equalsIgnoreCase("coiffeur");
+        boolean hasCoiffeurProfile = optProfile.isPresent();
+        boolean hasCoiffeurAuthority =
+            user.getAuthorities() != null &&
+            user
+                .getAuthorities()
+                .stream()
+                .anyMatch(a -> AuthoritiesConstants.COIFFEUR.equalsIgnoreCase(a.getName()) || "COIFFEUR".equalsIgnoreCase(a.getName()));
+        boolean isCoiffeur = hasCoiffeurProfile || hasCoiffeurAuthority;
 
-        String roleClean = isAdmin ? "admin" : wantsCoiffeur && isCoiffeur ? "coiffeur" : "client";
+        boolean isAdmin =
+            user.getAuthorities() != null &&
+            user
+                .getAuthorities()
+                .stream()
+                .anyMatch(
+                    a ->
+                        AuthoritiesConstants.ADMIN.equalsIgnoreCase(a.getName()) ||
+                        AuthoritiesConstants.SUPER_ADMIN.equalsIgnoreCase(a.getName())
+                );
+
+        String roleClean;
+        if (isAdmin) {
+            roleClean = "admin";
+        } else if (isCoiffeur) {
+            roleClean = "coiffeur";
+        } else {
+            roleClean = "client";
+        }
+
+        if (isCoiffeur && !hasCoiffeurAuthority) {
+            authorityRepository.findById(AuthoritiesConstants.COIFFEUR).ifPresent(auth -> {
+                Set<Authority> authorities = new HashSet<>(user.getAuthorities());
+                authorities.add(auth);
+                user.setAuthorities(authorities);
+                try {
+                    userRepository.save(user);
+                } catch (Exception e) {
+                    LOG.warn("Impossible d'ajouter le rôle COIFFEUR à l'utilisateur : {}", e.getMessage());
+                }
+            });
+        }
+
         String homeRoute = switch (roleClean) {
             case "admin" -> "/admin/dashboard";
             case "coiffeur" -> "/coiffeur/home";
@@ -219,7 +276,9 @@ public class AuthOtpServiceImpl implements AuthOtpService {
             user.getFirstName() != null && !user.getFirstName().isBlank()
                 ? user.getFirstName() + (user.getLastName() != null ? " " + user.getLastName() : "")
                 : "coiffeur".equals(roleClean)
-                  ? "Barbier Fotolou"
+                  ? optProfile.isPresent() && optProfile.get().getName() != null && !optProfile.get().getName().isBlank()
+                      ? optProfile.get().getName()
+                      : "Barbier Fotolou"
                   : isAdmin
                     ? "Administrateur Fotolou"
                     : "Client Fotolou";
