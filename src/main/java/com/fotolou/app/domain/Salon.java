@@ -188,6 +188,19 @@ public class Salon implements Serializable {
         this.address = address;
     }
 
+    public String getWebsite() {
+        return this.address;
+    }
+
+    public Salon website(String website) {
+        this.setWebsite(website);
+        return this;
+    }
+
+    public void setWebsite(String website) {
+        this.address = website;
+    }
+
     public SalonStatus getStatus() {
         return this.status;
     }

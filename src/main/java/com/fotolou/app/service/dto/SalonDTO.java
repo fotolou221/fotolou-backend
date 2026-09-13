@@ -121,6 +121,14 @@ public class SalonDTO implements Serializable {
         this.address = address;
     }
 
+    public String getWebsite() {
+        return this.address;
+    }
+
+    public void setWebsite(String website) {
+        this.address = website;
+    }
+
     public SalonStatus getStatus() {
         return status;
     }
