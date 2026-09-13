@@ -58,6 +58,15 @@ public interface TicketRepository extends JpaRepository<Ticket, Long>, JpaSpecif
     @Query("select count(t) from Ticket t where t.status in :statuses")
     long countByStatusIn(@Param("statuses") List<com.fotolou.app.domain.enumeration.TicketStatus> statuses);
 
+    @Query("select t.user.id, count(t) from Ticket t where t.user.id in :userIds group by t.user.id")
+    List<Object[]> countTicketsByUserIds(@Param("userIds") java.util.Collection<Long> userIds);
+
+    @Query("select t.ownerPhone, count(t) from Ticket t where t.user is null and t.ownerPhone in :phones group by t.ownerPhone")
+    List<Object[]> countTicketsByOwnerPhonesWithoutUser(@Param("phones") java.util.Collection<String> phones);
+
+    @Query("select count(t) from Ticket t where t.user.id = :userId or (:phone is not null and t.ownerPhone = :phone)")
+    long countByUserIdOrPhone(@Param("userId") Long userId, @Param("phone") String phone);
+
     default Optional<Ticket> findOneWithEagerRelationships(Long id) {
         return this.findOneWithToOneRelationships(id);
     }

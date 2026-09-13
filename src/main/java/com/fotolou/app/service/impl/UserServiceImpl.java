@@ -4,6 +4,8 @@ import com.fotolou.app.config.Constants;
 import com.fotolou.app.domain.Authority;
 import com.fotolou.app.domain.User;
 import com.fotolou.app.repository.AuthorityRepository;
+import com.fotolou.app.repository.RelativeRepository;
+import com.fotolou.app.repository.TicketRepository;
 import com.fotolou.app.repository.UserRepository;
 import com.fotolou.app.security.AuthoritiesConstants;
 import com.fotolou.app.security.SecurityUtils;
@@ -41,17 +43,23 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     private final AuthorityRepository authorityRepository;
     private final CacheManager cacheManager;
+    private final TicketRepository ticketRepository;
+    private final RelativeRepository relativeRepository;
 
     public UserServiceImpl(
         UserRepository userRepository,
         PasswordEncoder passwordEncoder,
         AuthorityRepository authorityRepository,
-        CacheManager cacheManager
+        CacheManager cacheManager,
+        TicketRepository ticketRepository,
+        RelativeRepository relativeRepository
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authorityRepository = authorityRepository;
         this.cacheManager = cacheManager;
+        this.ticketRepository = ticketRepository;
+        this.relativeRepository = relativeRepository;
     }
 
     @Override
@@ -256,7 +264,62 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public Page<AdminUserDTO> getAllManagedUsers(Pageable pageable) {
-        return userRepository.findAll(pageable).map(AdminUserDTO::new);
+        Page<User> usersPage = userRepository.findAll(pageable);
+        List<User> users = usersPage.getContent();
+        if (users.isEmpty()) {
+            return usersPage.map(AdminUserDTO::new);
+        }
+
+        List<Long> userIds = users.stream().map(User::getId).filter(Objects::nonNull).toList();
+        List<String> userPhones = users
+            .stream()
+            .flatMap(u -> java.util.stream.Stream.of(u.getLogin(), u.getPhone()))
+            .filter(Objects::nonNull)
+            .filter(s -> !s.isBlank())
+            .distinct()
+            .toList();
+
+        Map<Long, Long> relativesMap = new HashMap<>();
+        if (!userIds.isEmpty() && relativeRepository != null) {
+            for (Object[] row : relativeRepository.countRelativesByUserIds(userIds)) {
+                if (row != null && row.length >= 2 && row[0] != null && row[1] != null) {
+                    relativesMap.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
+                }
+            }
+        }
+
+        Map<Long, Long> ticketsUserMap = new HashMap<>();
+        if (!userIds.isEmpty() && ticketRepository != null) {
+            for (Object[] row : ticketRepository.countTicketsByUserIds(userIds)) {
+                if (row != null && row.length >= 2 && row[0] != null && row[1] != null) {
+                    ticketsUserMap.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
+                }
+            }
+        }
+
+        Map<String, Long> ticketsPhoneMap = new HashMap<>();
+        if (!userPhones.isEmpty() && ticketRepository != null) {
+            for (Object[] row : ticketRepository.countTicketsByOwnerPhonesWithoutUser(userPhones)) {
+                if (row != null && row.length >= 2 && row[0] != null && row[1] != null) {
+                    ticketsPhoneMap.put(String.valueOf(row[0]), ((Number) row[1]).longValue());
+                }
+            }
+        }
+
+        return usersPage.map(u -> {
+            AdminUserDTO dto = new AdminUserDTO(u);
+            Long rCount = relativesMap.getOrDefault(u.getId(), 0L);
+            Long tCount = ticketsUserMap.getOrDefault(u.getId(), 0L);
+            if (u.getPhone() != null && ticketsPhoneMap.containsKey(u.getPhone())) {
+                tCount += ticketsPhoneMap.get(u.getPhone());
+            }
+            if (u.getLogin() != null && !Objects.equals(u.getLogin(), u.getPhone()) && ticketsPhoneMap.containsKey(u.getLogin())) {
+                tCount += ticketsPhoneMap.get(u.getLogin());
+            }
+            dto.setRelativesCount(rCount);
+            dto.setTicketsCount(tCount);
+            return dto;
+        });
     }
 
     @Override
@@ -305,6 +368,22 @@ public class UserServiceImpl implements UserService {
     @Transactional(readOnly = true)
     public Optional<User> findOneByLogin(String login) {
         return userRepository.findOneByLogin(login);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<AdminUserDTO> getManagedUser(String login) {
+        return userRepository.findOneWithAuthoritiesByLogin(login).map(u -> {
+            AdminUserDTO dto = new AdminUserDTO(u);
+            long rCount = relativeRepository != null ? relativeRepository.countByUserId(u.getId()) : 0L;
+            long tCount =
+                ticketRepository != null
+                    ? ticketRepository.countByUserIdOrPhone(u.getId(), u.getPhone() != null ? u.getPhone() : u.getLogin())
+                    : 0L;
+            dto.setRelativesCount(rCount);
+            dto.setTicketsCount(tCount);
+            return dto;
+        });
     }
 
     private void clearUserCaches(User user) {

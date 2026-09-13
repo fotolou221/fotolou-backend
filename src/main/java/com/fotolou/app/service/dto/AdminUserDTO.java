@@ -53,6 +53,12 @@ public class AdminUserDTO implements Serializable {
 
     private Set<String> authorities;
 
+    private String phone;
+
+    private Long ticketsCount = 0L;
+
+    private Long relativesCount = 0L;
+
     public AdminUserDTO() {
         // Empty constructor needed for Jackson.
     }
@@ -71,6 +77,33 @@ public class AdminUserDTO implements Serializable {
         this.lastModifiedBy = user.getLastModifiedBy();
         this.lastModifiedDate = user.getLastModifiedDate();
         this.authorities = user.getAuthorities().stream().map(Authority::getName).collect(Collectors.toSet());
+        this.phone = user.getPhone();
+        this.ticketsCount = 0L;
+        this.relativesCount = 0L;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
+    public Long getTicketsCount() {
+        return ticketsCount;
+    }
+
+    public void setTicketsCount(Long ticketsCount) {
+        this.ticketsCount = ticketsCount;
+    }
+
+    public Long getRelativesCount() {
+        return relativesCount;
+    }
+
+    public void setRelativesCount(Long relativesCount) {
+        this.relativesCount = relativesCount;
     }
 
     public Long getId() {

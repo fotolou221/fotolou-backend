@@ -45,4 +45,6 @@ public interface UserService {
     Optional<User> findOneByEmailIgnoreCase(String email);
 
     Optional<User> findOneByLogin(String login);
+
+    Optional<AdminUserDTO> getManagedUser(String login);
 }

@@ -28,4 +28,9 @@ public interface RelativeRepository extends JpaRepository<Relative, Long> {
     Optional<Relative> findByIdAndUserLogin(@Param("id") Long id, @Param("login") String login);
 
     boolean existsByIdAndUserLogin(Long id, String login);
+
+    @Query("select r.user.id, count(r) from Relative r where r.user.id in :userIds group by r.user.id")
+    List<Object[]> countRelativesByUserIds(@Param("userIds") java.util.Collection<Long> userIds);
+
+    long countByUserId(Long userId);
 }
