@@ -626,19 +626,22 @@ public class QueueEngineServiceImpl implements QueueEngineService {
             Optional<com.fotolou.app.domain.CoiffeurProfile> cpOpt = coiffeurProfileRepository.findOneWithSalonByUserLogin(userLogin);
             if (cpOpt.isPresent() && cpOpt.get().getSalon() != null) {
                 Long salonId = cpOpt.get().getSalon().getId();
-                List<Ticket> salonTickets = ticketRepository.findBySalonIdOrderByCreatedDateDesc(salonId);
+                List<Ticket> salonTickets = ticketRepository.findBySalonIdWithUserAndSalonOrderByCreatedDateDesc(salonId);
                 return toDtosWithQueueState(salonTickets);
             }
         }
 
-        List<Ticket> tickets = ticketRepository.findByUserIdOrderByCreatedDateDesc(user.getId());
+        List<Ticket> tickets = ticketRepository.findByUserIdWithUserAndSalonOrderByCreatedDateDesc(user.getId());
         return toDtosWithQueueState(tickets);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<TicketDTO> getSalonQueue(Long salonId) {
-        List<Ticket> activeTickets = ticketRepository.findBySalonIdAndCategoryOrderByCreatedDateAscIdAsc(salonId, TicketCategory.ACTIVE);
+        List<Ticket> activeTickets = ticketRepository.findBySalonIdAndCategoryWithUserAndSalonOrderByCreatedDateAscIdAsc(
+            salonId,
+            TicketCategory.ACTIVE
+        );
         return toDtosWithQueueState(activeTickets);
     }
 

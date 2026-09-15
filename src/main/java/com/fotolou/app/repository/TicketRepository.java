@@ -25,6 +25,19 @@ public interface TicketRepository extends JpaRepository<Ticket, Long>, JpaSpecif
 
     List<Ticket> findBySalonIdOrderByCreatedDateDesc(Long salonId);
 
+    @Query(
+        "select ticket from Ticket ticket left join fetch ticket.user left join fetch ticket.salon where ticket.salon.id = :salonId order by ticket.createdDate desc"
+    )
+    List<Ticket> findBySalonIdWithUserAndSalonOrderByCreatedDateDesc(@Param("salonId") Long salonId);
+
+    @Query(
+        "select ticket from Ticket ticket left join fetch ticket.user left join fetch ticket.salon where ticket.salon.id = :salonId and ticket.category = :category order by ticket.createdDate asc, ticket.id asc"
+    )
+    List<Ticket> findBySalonIdAndCategoryWithUserAndSalonOrderByCreatedDateAscIdAsc(
+        @Param("salonId") Long salonId,
+        @Param("category") com.fotolou.app.domain.enumeration.TicketCategory category
+    );
+
     List<Ticket> findBySalonIdAndStatusInOrderByCreatedDateAscIdAsc(
         Long salonId,
         List<com.fotolou.app.domain.enumeration.TicketStatus> statuses
@@ -40,6 +53,11 @@ public interface TicketRepository extends JpaRepository<Ticket, Long>, JpaSpecif
     );
 
     List<Ticket> findByUserIdOrderByCreatedDateDesc(Long userId);
+
+    @Query(
+        "select ticket from Ticket ticket left join fetch ticket.user left join fetch ticket.salon where ticket.user.id = :userId order by ticket.createdDate desc"
+    )
+    List<Ticket> findByUserIdWithUserAndSalonOrderByCreatedDateDesc(@Param("userId") Long userId);
 
     @Query(
         "select max(t.ticketNumber) from Ticket t where t.salon.id = :salonId and t.createdDate >= :startOfDay and t.createdDate < :startOfNextDay"
