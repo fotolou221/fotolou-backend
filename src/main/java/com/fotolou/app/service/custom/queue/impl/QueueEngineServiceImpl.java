@@ -658,6 +658,7 @@ public class QueueEngineServiceImpl implements QueueEngineService {
                 }
                 applySelfOwnerName(dto, ticket);
                 enrichOwnerPhone(dto, ticket);
+                enrichOwnerAvatar(dto, ticket);
                 return dto;
             })
             .toList();
@@ -674,7 +675,22 @@ public class QueueEngineServiceImpl implements QueueEngineService {
         }
         applySelfOwnerName(dto, ticket);
         enrichOwnerPhone(dto, ticket);
+        enrichOwnerAvatar(dto, ticket);
         return dto;
+    }
+
+    private void enrichOwnerAvatar(TicketDTO dto, Ticket ticket) {
+        if (
+            dto != null &&
+            (dto.getOwnerAvatarUrl() == null || dto.getOwnerAvatarUrl().isBlank()) &&
+            ticket != null &&
+            ticket.getUser() != null
+        ) {
+            String img = ticket.getUser().getImageUrl();
+            if (img != null && !img.isBlank()) {
+                dto.setOwnerAvatarUrl(img);
+            }
+        }
     }
 
     private void enrichOwnerPhone(TicketDTO dto, Ticket ticket) {

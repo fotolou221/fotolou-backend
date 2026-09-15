@@ -165,6 +165,8 @@ public class AccountResource {
         }
         if (profileDTO.containsKey("imageUrl")) {
             user.setImageUrl(profileDTO.get("imageUrl"));
+        } else if (profileDTO.containsKey("avatarUrl")) {
+            user.setImageUrl(profileDTO.get("avatarUrl"));
         }
 
         userService.updateUser(user.getFirstName(), user.getLastName(), user.getEmail(), user.getLangKey(), user.getImageUrl());
@@ -181,6 +183,7 @@ public class AccountResource {
         result.put("firstName", user.getFirstName() != null ? user.getFirstName() : "");
         result.put("lastName", user.getLastName() != null ? user.getLastName() : "");
         result.put("imageUrl", user.getImageUrl());
+        result.put("avatarUrl", user.getImageUrl());
 
         return ResponseEntity.ok(result);
     }

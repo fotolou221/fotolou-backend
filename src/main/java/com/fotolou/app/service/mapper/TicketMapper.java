@@ -15,11 +15,13 @@ import org.mapstruct.*;
 public interface TicketMapper extends EntityMapper<TicketDTO, Ticket> {
     @Mapping(target = "user", source = "user", qualifiedByName = "userId")
     @Mapping(target = "salon", source = "salon", qualifiedByName = "salonName")
+    @Mapping(target = "ownerAvatarUrl", source = "user.imageUrl")
     TicketDTO toDto(Ticket s);
 
     @Named("userId")
     @BeanMapping(ignoreByDefault = true)
     @Mapping(target = "id", source = "id")
+    @Mapping(target = "imageUrl", source = "imageUrl")
     UserDTO toDtoUserId(User user);
 
     @Named("salonName")

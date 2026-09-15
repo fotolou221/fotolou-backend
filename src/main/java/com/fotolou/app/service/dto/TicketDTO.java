@@ -56,6 +56,8 @@ public class TicketDTO implements Serializable {
 
     private Instant lastModifiedDate;
 
+    private String ownerAvatarUrl;
+
     private UserDTO user;
 
     @NotNull
@@ -67,6 +69,14 @@ public class TicketDTO implements Serializable {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getOwnerAvatarUrl() {
+        return ownerAvatarUrl;
+    }
+
+    public void setOwnerAvatarUrl(String ownerAvatarUrl) {
+        this.ownerAvatarUrl = ownerAvatarUrl;
     }
 
     public Integer getTicketNumber() {
