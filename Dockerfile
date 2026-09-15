@@ -41,7 +41,7 @@ ENV PORT=8080
 EXPOSE 8080
 
 # Optimisations JVM mémoire pour conteneurs cloud (Render Free Tier 512MB RAM)
-ENV JAVA_OPTS="-Xms64m -Xmx224m -XX:+UseSerialGC -Xss512k -XX:MaxMetaspaceSize=112m -XX:ReservedCodeCacheSize=48m -XX:+TieredCompilation -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError"
+ENV JAVA_OPTS="-Xms64m -Xmx192m -XX:+UseSerialGC -Xss512k -XX:MaxMetaspaceSize=192m -XX:ReservedCodeCacheSize=48m -XX:+TieredCompilation -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError"
 
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -Djava.security.egd=file:/dev/./urandom -jar /app/app.jar --spring.profiles.active=prod --server.port=${PORT:-8080} --server.address=0.0.0.0"]
 
