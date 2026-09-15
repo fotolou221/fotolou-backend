@@ -39,6 +39,8 @@ spring:
     hikari:
       poolName: Hikari
       auto-commit: false
+      maximum-pool-size: 5
+      minimum-idle: 2
   # Replace by 'prod, faker' to add the faker context and have sample data loaded in production
   liquibase:
     contexts: prod
@@ -69,6 +71,7 @@ spring:
 # ===================================================================
 server:
   port: ${PORT:8080}
+  address: 0.0.0.0
   shutdown: graceful # see https://docs.spring.io/spring-boot/reference/web/graceful-shutdown.html#web.graceful-shutdown
   compression:
     enabled: true
